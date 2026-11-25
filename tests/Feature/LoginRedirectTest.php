@@ -21,7 +21,8 @@ class LoginRedirectTest extends TestCase
         $this->assertStringEndsWith('/admin/loans', $target);
 
         $admin = User::where('email', 'admin@latekaje.net')->first()
-            ?? User::where('email', 'admin@gmail.com')->firstOrFail();
+            ?? User::where('email', 'admin@gmail.com')->first()
+            ?? User::where('role', 'superadmin')->firstOrFail();
         $this->actingAs($admin);
         $target = (new LoginResponse)->toResponse(request())->getTargetUrl();
         echo "staf -> $target\n";
