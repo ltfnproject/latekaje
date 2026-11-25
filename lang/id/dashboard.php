@@ -45,6 +45,9 @@ return [
     'unreturned_heading' => 'Belum Kembali (semua pinjaman aktif)',
     'col_duration' => 'Lama',
     'duration_today' => 'hari ini',
+    'duration_months' => ':count bulan',
     'duration_days' => ':count hari',
+    'duration_hours' => ':count jam',
+    'duration_minutes' => ':count menit',
     'col_pin' => 'PIN',
 ];

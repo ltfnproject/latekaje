@@ -77,8 +77,14 @@ class UnreturnedTable extends BaseWidget
                 TextColumn::make('lama_pinjam')
                     ->label(__('dashboard.col_duration'))
                     ->badge()
-                    ->color(fn ($record) => $record->tanggal_pinjam->diffInDays(now()) >= 7 ? 'danger' : ($record->tanggal_pinjam->diffInDays(now()) >= 3 ? 'warning' : 'gray'))
-                    ->state(fn ($record) => ($d = $record->tanggal_pinjam->diffInDays(now())) === 0 ? __('dashboard.duration_today') : __('dashboard.duration_days', ['count' => $d])),
+                    ->color(function ($record): string {
+                        $days = $record->tanggal_pinjam
+                            ? (int) floor($record->tanggal_pinjam->diffInDays(now()))
+                            : 0;
+
+                        return $days >= 7 ? 'danger' : ($days >= 3 ? 'warning' : 'gray');
+                    })
+                    ->state(fn ($record): string => Loan::formatDuration($record->tanggal_pinjam)),
 
                 TextColumn::make('return_pin')
                     ->label(__('dashboard.col_pin'))

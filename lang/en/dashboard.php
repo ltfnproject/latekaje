@@ -45,6 +45,9 @@ return [
     'unreturned_heading' => 'Unreturned (all active loans)',
     'col_duration' => 'Duration',
     'duration_today' => 'today',
-    'duration_days' => ':count days',
+    'duration_months' => ':count mo',
+    'duration_days' => ':count d',
+    'duration_hours' => ':count h',
+    'duration_minutes' => ':count m',
     'col_pin' => 'PIN',
 ];
