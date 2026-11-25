@@ -77,6 +77,7 @@ return [
     'full_name' => 'Nama Lengkap',
     'group_label' => 'Grup',
     'group_origin' => 'Grup / Asal',
+    'group_missing_helper' => 'Grup akun Anda belum terisi — silakan pilih sekali, sistem akan menyimpannya otomatis ke profil Anda.',
     'helper_new_member' => 'Anggota belum terdaftar? Ketik lalu pilih "Buat baru". Bisa juga isi manual di bawah.',
     'name_auto_placeholder' => 'Terisi otomatis dari anggota terpilih',
     'step3_title' => 'Langkah 3 — Kunci dengan PIN',

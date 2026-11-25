@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Services\ActivityLogger;
+use App\Services\MemberAccountSync;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -67,6 +68,10 @@ class User extends Authenticatable implements FilamentUser
                     ['target_role' => $user->role],
                 );
             }
+
+            if ($user->wasChanged(['name', 'code', 'is_active'])) {
+                MemberAccountSync::syncBasicFieldsFromUser($user);
+            }
         });
     }
 
@@ -78,6 +83,69 @@ class User extends Authenticatable implements FilamentUser
     public function member(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(Member::class);
+    }
+
+    /**
+     * Resolve linked Member reliably via `member_id` or fallback to `code`.
+     */
+    public function resolvedMember(): ?Member
+    {
+        if ($this->relationLoaded('member') && $this->member) {
+            return $this->member;
+        }
+
+        if ($this->member_id && ($linked = $this->member()->first())) {
+            $this->setRelation('member', $linked);
+
+            return $linked;
+        }
+
+        if (filled($this->code)) {
+            $byCode = Member::where('code', $this->code)->first();
+            if ($byCode) {
+                $this->setRelation('member', $byCode);
+
+                return $byCode;
+            }
+        }
+
+        return null;
+    }
+
+    public function memberType(): ?string
+    {
+        if (! $this->isBorrower()) {
+            return null;
+        }
+
+        return $this->resolvedMember()?->member_type ?? Member::TYPE_STUDENT;
+    }
+
+    public function memberTypeLabel(): ?string
+    {
+        $type = $this->memberType();
+
+        return $type ? (Member::memberTypeOptions()[$type] ?? __('members.type_student')) : null;
+    }
+
+    public function borrowerGroup(): ?string
+    {
+        return $this->resolvedMember()?->group;
+    }
+
+    public function isStudent(): bool
+    {
+        return $this->isBorrower() && $this->memberType() === Member::TYPE_STUDENT;
+    }
+
+    public function isTeacher(): bool
+    {
+        return $this->isBorrower() && $this->memberType() === Member::TYPE_TEACHER;
+    }
+
+    public function isEmployee(): bool
+    {
+        return $this->isBorrower() && $this->memberType() === Member::TYPE_EMPLOYEE;
     }
 
     public function isSuperadmin(): bool

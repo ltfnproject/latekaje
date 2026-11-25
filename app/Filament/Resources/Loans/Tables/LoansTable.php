@@ -24,6 +24,7 @@ class LoansTable
     public static function configure(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with(['assetItem', 'member']))
             ->columns([
                 TextColumn::make('assetItem.nomor_seri_atau_qr')
                     ->label(__('loans.col_qr'))
@@ -42,7 +43,10 @@ class LoansTable
 
                 TextColumn::make('borrower_name')
                     ->label(__('loans.col_borrower'))
-                    ->description(fn ($record) => $record->group)
+                    ->description(fn ($record): string => trim(
+                        (string) $record->group
+                        .($record->member ? ' · '.$record->member->memberTypeLabel() : '')
+                    ))
                     ->searchable()
                     ->sortable(),
 

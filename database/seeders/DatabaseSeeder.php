@@ -82,6 +82,8 @@ class DatabaseSeeder extends Seeder
             'xi_tjkt_2' => 'XI TJKT 2',
             'xii_tjkt_1' => 'XII TJKT 1',
             'xii_tjkt_2' => 'XII TJKT 2',
+            'guru' => 'GURU',
+            'karyawan' => 'KARYAWAN',
             'guru_staf' => 'GURU / STAF',
             'tamu_eksternal' => 'Tamu / Eksternal',
         ] as $key => $label) {

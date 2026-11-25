@@ -77,6 +77,7 @@ return [
     'full_name' => 'Full Name',
     'group_label' => 'Group',
     'group_origin' => 'Group / Origin',
+    'group_missing_helper' => 'Your account group is not set yet — select it once and it will be saved to your profile automatically.',
     'helper_new_member' => 'Member not registered? Type then choose "Create new". You can also fill in manually below.',
     'name_auto_placeholder' => 'Auto-filled from selected member',
     'step3_title' => 'Step 3 — Lock with PIN',

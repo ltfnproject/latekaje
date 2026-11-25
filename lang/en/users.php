@@ -5,10 +5,17 @@ return [
     'model_plural' => 'Users',
 
     // Form
+    'section_account' => 'Login Account & Role',
+    'section_borrower_profile' => 'Borrower Profile (Student / Teacher / Employee)',
+    'section_borrower_profile_desc' => 'Automatically synced with Master Members so borrower category and group are always complete.',
+    'section_acl' => 'Custom Permissions (ACL)',
+    'link_member_label' => 'Link Existing Member (optional)',
+    'link_member_placeholder' => 'Leave empty to automatically create a new Member record',
+    'link_member_helper' => 'If already registered in Master Members, pick here to auto-fill profile fields.',
     'name_label' => 'Name',
     'email_label' => 'Email',
-    'code_label' => 'Member ID',
-    'code_placeholder' => 'Member accounts only',
+    'code_label' => 'Member ID / NIS / NIP',
+    'code_placeholder' => 'e.g.: 1001 (student NIS or staff NIP)',
     'role_label' => 'Role',
     'role_superadmin' => 'Super Admin (IT Team)',
     'role_admin' => 'Head of Lab (KKK)',
@@ -25,6 +32,7 @@ return [
     'perm_deny_label' => 'Extra rights: DENY (even if role allows)',
     'new_password_label' => 'New Password',
     'password_helper_edit' => 'Leave empty to keep unchanged.',
+    'password_helper_borrower_create' => 'May be left empty if Birth Date or Member ID is filled — automatically uses DDMMYYYY format (must change on first login).',
 
     // Table
     'member_data_label' => 'Member Data',

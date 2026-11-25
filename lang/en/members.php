@@ -20,11 +20,17 @@ return [
 
     // Table
     'active_label' => 'Active',
+    'active_helper' => 'Turning off active status automatically deactivates the linked login account.',
+    'has_account_label' => 'Login Account',
     'loans_label' => 'Loans',
 
     // Actions & notifications
     'create_action' => 'Add Member',
     'create_account' => 'Create Account',
+    'reset_password' => 'Reset Initial Password',
+    'password_reset_title' => 'Initial password reset',
+    'bulk_create_accounts' => 'Bulk Create Accounts',
+    'bulk_accounts_created_title' => ':count member login accounts created',
     'account_created_title' => 'Login account created',
     'account_created_body' => 'ID: :code | Initial password: their ID (birth date not set). Member must change password on first login.',
     'account_created_body_dob' => 'ID: :code | Initial password: Birth date in DDMMYYYY format. Member must change password on first login.',

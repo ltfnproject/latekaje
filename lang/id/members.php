@@ -20,11 +20,17 @@ return [
 
     // Table
     'active_label' => 'Aktif',
+    'active_helper' => 'Mematikan status aktif akan otomatis menonaktifkan akun login anggota ini.',
+    'has_account_label' => 'Akun Login',
     'loans_label' => 'Pinjam',
 
     // Actions & notifications
     'create_action' => 'Tambah Anggota',
     'create_account' => 'Buat Akun',
+    'reset_password' => 'Reset Password Awal',
+    'password_reset_title' => 'Password awal berhasil direset',
+    'bulk_create_accounts' => 'Buat Akun Massal',
+    'bulk_accounts_created_title' => ':count akun login anggota berhasil dibuat',
     'account_created_title' => 'Akun login dibuat',
     'account_created_body' => 'ID: :code | Password awal: ID-nya (tanggal lahir belum diisi). Anggota wajib ganti password saat login pertama.',
     'account_created_body_dob' => 'ID: :code | Password awal: Tanggal Lahir format DDMMYYYY. Anggota wajib ganti password saat login pertama.',

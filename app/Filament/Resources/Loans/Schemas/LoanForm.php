@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Loans\Schemas;
 use App\Models\AssetItem;
 use App\Models\Group;
 use App\Models\Member;
+use App\Services\MemberAccountSync;
 use Closure;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Placeholder;
@@ -17,9 +18,9 @@ use Illuminate\Support\HtmlString;
 
 class LoanForm
 {
-    private static function selfMember(): ?\App\Models\Member
+    private static function selfMember(): ?Member
     {
-        return auth()->user()?->member;
+        return auth()->user()?->resolvedMember();
     }
 
     private static function selfName(): ?string
@@ -46,7 +47,7 @@ class LoanForm
 
     private static function selfCode(): ?string
     {
-        return auth()->user()?->code;
+        return self::selfMember()?->code ?? auth()->user()?->code;
     }
 
     private static function canSelectAnyMember(): bool
@@ -154,6 +155,22 @@ class LoanForm
             Section::make(__('loans.step2_title'))
                 ->description(fn (): string => self::isLockedPersonalBorrower() ? __('loans.step2_desc_self') : __('loans.step2_desc'))
                 ->schema([
+                    Placeholder::make('borrower_identity_summary')
+                        ->hiddenLabel()
+                        ->visible(fn (): bool => self::isLockedPersonalBorrower())
+                        ->content(function (): HtmlString {
+                            $user = auth()->user();
+                            $typeLabel = e($user?->memberTypeLabel() ?? __('members.type_student'));
+                            $codeLabel = e(self::selfCode() ?: '-');
+
+                            return new HtmlString(
+                                '<div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center;font-size:0.85rem;">'
+                                .'<span style="padding:0.2rem 0.6rem;border-radius:9999px;background:#fef3c7;color:#92400e;font-weight:600;">'.$typeLabel.'</span>'
+                                .'<span style="color:#6b7280;">ID: <strong>'.$codeLabel.'</strong></span>'
+                                .'</div>'
+                            );
+                        }),
+
                     Placeholder::make('borrower_memory')
                         ->hiddenLabel()
                         ->visible(fn (): bool => self::canSelectAnyMember())
@@ -216,7 +233,7 @@ class LoanForm
 
                     Select::make('member_id')
                         ->label(__('loans.select_member'))
-                        ->default(fn () => auth()->user()?->member_id)
+                        ->default(fn () => self::selfMember()?->id ?? auth()->user()?->member_id)
                         ->visible(fn (): bool => self::canSelectAnyMember())
                         ->searchable()
                         ->options(fn () => self::canSelectAnyMember()
@@ -238,6 +255,11 @@ class LoanForm
                                 ->label(__('loans.full_name'))
                                 ->required()
                                 ->maxLength(255),
+                            Select::make('member_type')
+                                ->label(__('members.member_type_label'))
+                                ->options(Member::memberTypeOptions())
+                                ->default(Member::TYPE_STUDENT)
+                                ->required(),
                             Select::make('group')
                                 ->label(__('loans.group_label'))
                                 ->required()
@@ -250,7 +272,8 @@ class LoanForm
                             return Member::create([
                                 'code' => blank($data['code'] ?? null) ? null : trim((string) $data['code']),
                                 'name' => trim((string) $data['name']),
-                                'group' => $data['group'],
+                                'member_type' => MemberAccountSync::normalizeMemberType((string) ($data['member_type'] ?? Member::TYPE_STUDENT)),
+                                'group' => MemberAccountSync::ensureGroupExists((string) $data['group']) ?? $data['group'],
                                 'aktif' => true,
                             ])->getKey();
                         })
@@ -262,7 +285,7 @@ class LoanForm
                     TextInput::make('borrower_name')
                         ->label(__('loans.full_name'))
                         ->default(fn () => self::selfName())
-                        ->disabled(fn (): bool => self::isLockedPersonalBorrower())
+                        ->disabled(fn (): bool => self::isLockedPersonalBorrower() && filled(self::selfName()))
                         ->dehydrated(true)
                         ->placeholder(__('loans.name_auto_placeholder'))
                         ->required()
@@ -272,11 +295,22 @@ class LoanForm
                     Select::make('group')
                         ->label(__('loans.group_origin'))
                         ->default(fn () => self::selfGroup())
-                        ->disabled(fn (): bool => self::isLockedPersonalBorrower())
+                        ->disabled(fn (): bool => self::isLockedPersonalBorrower() && filled(self::selfGroup()))
                         ->dehydrated(true)
                         ->required()
                         ->searchable()
-                        ->options(fn () => Group::orderBy('label')->pluck('label', 'label'))
+                        ->options(function (): array {
+                            $options = Group::query()->orderBy('label')->pluck('label', 'label')->all();
+                            $selfGroup = self::selfGroup();
+                            if (filled($selfGroup) && ! array_key_exists($selfGroup, $options)) {
+                                $options[$selfGroup] = $selfGroup;
+                            }
+
+                            return $options;
+                        })
+                        ->helperText(fn (): ?string => (self::isLockedPersonalBorrower() && blank(self::selfGroup()))
+                            ? __('loans.group_missing_helper')
+                            : null)
                         ->extraAttributes(['id' => 'loan-kelas-field']),
                 ]),
 

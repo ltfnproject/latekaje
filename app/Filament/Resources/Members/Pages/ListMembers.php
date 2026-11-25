@@ -29,7 +29,8 @@ class ListMembers extends ListRecords
                     $rows = [
                         ['1001', 'Budi Santoso', 'X TJKT 1', 'student', '2009-05-14'],
                         ['1002', 'Siti Aminah', 'X TJKT 1', 'student', '2009-08-21'],
-                        ['G001', 'Ahmad Fauzi', 'GURU / STAF', 'teacher', '1986-04-12'],
+                        ['G001', 'Ahmad Fauzi', 'GURU', 'teacher', '1986-04-12'],
+                        ['K001', 'Dedi Kurniawan', 'KARYAWAN', 'employee', '1990-07-05'],
                     ];
 
                     return response()->streamDownload(function () use ($headers, $rows) {

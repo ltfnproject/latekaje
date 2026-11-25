@@ -3,7 +3,7 @@
 namespace App\Filament\Imports;
 
 use App\Models\Member;
-use App\Models\User;
+use App\Services\MemberAccountSync;
 use Carbon\Carbon;
 use Filament\Actions\Imports\ImportColumn;
 use Filament\Actions\Imports\Importer;
@@ -33,7 +33,7 @@ class MemberImporter extends Importer
                 ->label(__('members.import_col_group'))
                 ->requiredMapping()
                 ->rules(['required', 'string', 'max:255'])
-                ->examples(['X TJKT 1'])
+                ->examples(['X TJKT 1', 'GURU', 'KARYAWAN'])
                 ->fillRecordUsing(fn () => null),
 
             ImportColumn::make('member_type')
@@ -59,14 +59,16 @@ class MemberImporter extends Importer
     public function resolveRecord(): ?Member
     {
         $name = trim((string) ($this->data['name'] ?? ''));
-        $group = trim((string) ($this->data['group'] ?? ''));
+        $rawGroup = trim((string) ($this->data['group'] ?? ''));
         $code = trim((string) ($this->data['code'] ?? ''));
-        $memberType = self::normalizeMemberType((string) ($this->data['member_type'] ?? ''));
+        $memberType = MemberAccountSync::normalizeMemberType((string) ($this->data['member_type'] ?? ''));
         $birthDate = self::parseBirthDate((string) ($this->data['birth_date'] ?? ''));
 
-        if ($name === '' || $group === '') {
+        if ($name === '' || $rawGroup === '') {
             return null;
         }
+
+        $group = MemberAccountSync::ensureGroupExists($rawGroup) ?? $rawGroup;
 
         if ($code !== '') {
             $member = Member::firstOrNew(['code' => $code]);
@@ -80,18 +82,12 @@ class MemberImporter extends Importer
             $member->save();
 
             $explicitPassword = trim((string) ($this->data['password'] ?? ''));
-            $initialPassword = $explicitPassword !== '' ? $explicitPassword : $member->defaultInitialPassword();
 
-            User::updateOrCreate(
-                ['code' => $code, 'role' => 'users'],
-                [
-                    'name' => $name,
-                    'email' => $code.'@member.latekaje',
-                    'password' => $initialPassword,
-                    'member_id' => $member->id,
-                    'is_active' => true,
-                    'must_change_password' => true,
-                ]
+            MemberAccountSync::provisionAccountForMember(
+                $member,
+                explicitPassword: $explicitPassword !== '' ? $explicitPassword : null,
+                forcePasswordChange: true,
+                resetExistingPassword: false,
             );
 
             return $member;
@@ -104,15 +100,6 @@ class MemberImporter extends Importer
             'birth_date' => $birthDate,
             'aktif' => true,
         ]);
-    }
-
-    private static function normalizeMemberType(string $raw): string
-    {
-        return match (strtolower(trim($raw))) {
-            'teacher', 'guru' => Member::TYPE_TEACHER,
-            'employee', 'karyawan', 'staf', 'staff' => Member::TYPE_EMPLOYEE,
-            default => Member::TYPE_STUDENT,
-        };
     }
 
     private static function parseBirthDate(string $raw): ?string

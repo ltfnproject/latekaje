@@ -6,6 +6,7 @@ use App\Filament\Resources\Loans\LoanResource;
 use App\Models\Loan;
 use App\Models\Member;
 use App\Services\LoanService;
+use App\Services\MemberAccountSync;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 
@@ -21,7 +22,16 @@ class CreateLoan extends CreateRecord
         // Anti-impersonasi: akun peminjam wajib memakai identitas miliknya sendiri di sisi server.
         if ($user?->isBorrower()) {
             if ($user->isPersonalBorrower()) {
-                $member = $user->member ?: ($user->code ? Member::where('code', $user->code)->first() : null);
+                $member = $user->resolvedMember();
+
+                // Self-heal profil jika akun lama belum tertaut atau grup masih kosong
+                if (! $member || blank($member->group)) {
+                    $chosenGroup = trim((string) ($data['group'] ?? ''));
+                    $member = MemberAccountSync::syncFromUser($user, array_filter([
+                        'group' => $chosenGroup !== '' ? $chosenGroup : null,
+                    ], fn ($v) => $v !== null));
+                }
+
                 $memberId = $member?->id ?? $user->member_id;
                 $data['code'] = $member?->code ?? $user->code;
                 $data['borrower_name'] = $member?->name ?? $user->name;

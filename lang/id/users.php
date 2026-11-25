@@ -5,10 +5,17 @@ return [
     'model_plural' => 'Pengguna',
 
     // Form
+    'section_account' => 'Akun Login & Peran',
+    'section_borrower_profile' => 'Profil Peminjam (Siswa / Guru / Karyawan)',
+    'section_borrower_profile_desc' => 'Otomatis disinkronkan dengan Data Master Anggota agar identitas & grup peminjam selalu lengkap.',
+    'section_acl' => 'Hak Akses Khusus (ACL)',
+    'link_member_label' => 'Tautkan ke Data Anggota (opsional)',
+    'link_member_placeholder' => 'Kosongkan untuk otomatis membuat Data Anggota baru',
+    'link_member_helper' => 'Jika anggota sudah terdaftar di Data Master Anggota, pilih di sini agar profil terisi otomatis.',
     'name_label' => 'Nama',
     'email_label' => 'Email',
-    'code_label' => 'ID Anggota',
-    'code_placeholder' => 'Khusus akun anggota',
+    'code_label' => 'NIS / NIP / ID Anggota',
+    'code_placeholder' => 'cth: 1001 (NIS siswa atau NIP guru/karyawan)',
     'role_label' => 'Role',
     'role_superadmin' => 'Super Admin (Tim IT)',
     'role_admin' => 'KKK (Kepala Lab)',
@@ -25,6 +32,7 @@ return [
     'perm_deny_label' => 'Hak khusus: LARANG (walau role membolehkan)',
     'new_password_label' => 'Password Baru',
     'password_helper_edit' => 'Kosongkan bila tidak diganti.',
+    'password_helper_borrower_create' => 'Boleh dikosongkan bila Tanggal Lahir atau NIS/NIP diisi — otomatis memakai format DDMMYYYY (wajib ganti saat login pertama).',
 
     // Table
     'member_data_label' => 'Data Anggota',

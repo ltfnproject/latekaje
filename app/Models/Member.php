@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use App\Services\MemberAccountSync;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Member extends Model
 {
@@ -19,6 +21,24 @@ class Member extends Model
             'aktif' => 'boolean',
             'birth_date' => 'date',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::saving(function (Member $member): void {
+            if (filled($member->group)) {
+                $normalized = MemberAccountSync::ensureGroupExists($member->group);
+                if ($normalized) {
+                    $member->group = $normalized;
+                }
+            }
+        });
+
+        static::updated(function (Member $member): void {
+            if ($member->wasChanged(['name', 'code', 'aktif'])) {
+                MemberAccountSync::syncFromMember($member);
+            }
+        });
     }
 
     public static function memberTypeOptions(): array
@@ -47,6 +67,11 @@ class Member extends Model
         return (string) ($this->code ?? '');
     }
 
+    public function user(): HasOne
+    {
+        return $this->hasOne(User::class, 'member_id');
+    }
+
     public function loans(): HasMany
     {
         return $this->hasMany(Loan::class, 'member_id');
@@ -59,6 +84,8 @@ class Member extends Model
 
     public function label(): string
     {
-        return ($this->code ? $this->code.' — ' : '').$this->name.' ('.$this->group.')';
+        $type = $this->memberTypeLabel();
+
+        return ($this->code ? $this->code.' — ' : '').$this->name.' ('.$this->group.' · '.$type.')';
     }
 }
