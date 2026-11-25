@@ -1,28 +1,17 @@
 <?php
 
-use App\Models\AssetItem;
+use App\Http\Controllers\PrintQrController;
+use App\Http\Controllers\PrivateFileController;
+use App\Http\Middleware\EnsureUserIsActive;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/admin');
 
-Route::get('/print-qr', function () {
-    $ids = request()->query('ids', 'all');
+Route::middleware(['auth', EnsureUserIsActive::class])->group(function (): void {
+    Route::get('/print-qr', PrintQrController::class)->name('print.qr');
 
-    $query = AssetItem::query()->with('asset')->orderBy('nomor_seri_atau_qr');
+    Route::get('/files/loans/{loan}/return-photo', [PrivateFileController::class, 'loanReturnPhoto'])
+        ->name('files.loans.return-photo');
+});
 
-    if ($ids !== 'all') {
-        $idList = collect(explode(',', (string) $ids))
-            ->map(fn ($v) => trim($v))
-            ->filter()
-            ->values()
-            ->all();
-
-        $query->whereIn('id', $idList);
-    }
-
-    return view('print-qrcode', [
-        'items' => $query->get(),
-    ]);
-})->middleware('auth')->name('print.qr');
-
-Route::get("/login", fn () => redirect("/admin/login"))->name("login");
+Route::redirect('/login', '/admin/login')->name('login');

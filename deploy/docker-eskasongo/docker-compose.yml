@@ -1,0 +1,39 @@
+# LATEKAJE v4 — Docker Compose Cara B (Tanpa Build) untuk VPS eskasongo
+# SOP Infrastruktur SMKW9:
+# - Shared MySQL (`core-db-mysql`) & Nginx Proxy Manager (`core-proxy-npm`) pada `app-network`
+# - Tanpa exposed `ports:` ke host (semua trafik HTTP/HTTPS melalui NPM)
+# - `FPM_PM_MAX_CHILDREN=5` hemat RAM VPS
+# - Folder kode aplikasi di-clone ke `./src` (bind mount ke `/var/www/html`)
+
+services:
+  smk-latekaje-web:
+    image: webdevops/php-nginx:8.4-alpine
+    container_name: smk-latekaje-web
+    restart: unless-stopped
+    environment:
+      WEB_DOCUMENT_ROOT: /var/www/html/public
+      PHP_MEMORY_LIMIT: 256M
+      PHP_MAX_EXECUTION_TIME: 120
+      PHP_POST_MAX_SIZE: 16M
+      PHP_UPLOAD_MAX_FILESIZE: 16M
+      FPM_PM_MAX_CHILDREN: "5"
+      TZ: Asia/Jakarta
+    volumes:
+      - ./src:/var/www/html
+    tmpfs:
+      - /tmp:size=64m
+    labels:
+      domain: "inv.tjkt.smkw9jepara.sch.id"
+      pic: "lutfi0711"
+      app: "latekaje-v4"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    external: true

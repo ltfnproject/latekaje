@@ -20,6 +20,13 @@
                 {{ $maintenance ? __('settings.maintenance_disable') : __('settings.maintenance_enable') }}
             </x-filament::button>
 
+            @if($maintenanceBypassUrl)
+            <div class="lk-btnrow" style="margin-top: 0.75rem;">
+                <span class="lk-note">{{ __('settings.maintenance_bypass_label') }}</span>
+                <code class="lk-mono" style="user-select: all;">{{ $maintenanceBypassUrl }}</code>
+            </div>
+            @endif
+
             <!-- Confirmation Modal for Maintenance Toggle -->
             <div x-show="confirmMaintenance" x-transition x-cloak class="fixed inset-0 z-50 overflow-y-auto">
                 <div class="flex min-h-full items-center justify-center p-4">
@@ -49,6 +56,7 @@
             </div>
         </x-filament::section>
 
+        @if(auth()->user()?->isSuperadmin())
         <x-filament::section>
             <x-slot name="heading">{{ __("settings.api_heading") }}</x-slot>
             <x-slot name="description">{{ __("settings.api_desc") }}</x-slot>
@@ -90,6 +98,7 @@
                 </table>
             </div>
         </x-filament::section>
+        @endif
 
         <x-filament::section>
             <x-slot name="heading">{{ __("settings.language_heading") }}</x-slot>
@@ -200,7 +209,7 @@
                     </div>
                     <div class="lk-field">
                         <label>{{ __("settings.secret_token") }}</label>
-                        <input wire:model="form.webhook_secret" class="lk-input lk-mono" />
+                        <input type="password" wire:model="form.webhook_secret" class="lk-input lk-mono" />
                     </div>
                     <div class="lk-field">
                         <label>{{ __("settings.basic_user_cond") }} <span class="lk-opt">{{ __("settings.basic_cond_hint") }}</span></label>

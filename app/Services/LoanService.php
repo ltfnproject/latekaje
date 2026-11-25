@@ -58,6 +58,18 @@ class LoanService
 
         broadcast(new LoanActivityEvent('borrow', $loan->id, $itemCode, $borrowerName, $group))->toOthers();
 
+        ActivityLogger::log(
+            'loan.borrowed',
+            "Peminjaman {$itemCode} oleh {$borrowerName} ({$group})",
+            $loan,
+            [
+                'item_code' => $itemCode,
+                'borrower_name' => $borrowerName,
+                'group' => $group,
+                'member_id' => $memberId,
+            ],
+        );
+
         return $loan;
     }
 
@@ -142,6 +154,19 @@ class LoanService
             $info['group'],
             $info['by'],
         ))->toOthers();
+
+        ActivityLogger::log(
+            'loan.returned',
+            "Pengembalian {$info['item_code']} oleh {$info['by']} (peminjam: {$info['borrower_name']})",
+            $loan,
+            [
+                'item_code' => $info['item_code'],
+                'returned_by' => $info['by'],
+                'return_method' => trim((string) ($payload['received_by'] ?? '')) !== '' ? 'petugas' : 'mandiri',
+                'received_by' => trim((string) ($payload['received_by'] ?? '')) ?: null,
+                'has_photo' => filled($payload['return_photo_path'] ?? null),
+            ],
+        );
     }
 
     /**
@@ -173,6 +198,16 @@ class LoanService
                 AssetItem::whereKey($lockedLoan->asset_item_id)->update(['status' => 'tersedia']);
             }
         });
+
+        ActivityLogger::log(
+            'loan.force_closed',
+            "Tutup paksa pinjaman #{$loan->id} ({$loan->borrower_name}) oleh {$receivedBy}",
+            $loan,
+            [
+                'received_by' => $receivedBy,
+                'returned_by' => $returnedBy ?: $loan->borrower_name,
+            ],
+        );
     }
 
     private static function newPin(): string

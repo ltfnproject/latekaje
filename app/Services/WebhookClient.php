@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Setting;
+use App\Support\SafeUrl;
 use Illuminate\Support\Facades\Http;
 
 class WebhookClient
@@ -13,11 +14,16 @@ class WebhookClient
      */
     public static function post(string $url, array $payload): array
     {
+        $check = SafeUrl::validate($url);
+        if (! $check['ok']) {
+            return ['ok' => false, 'status' => 0, 'body' => '[blocked] '.$check['error']];
+        }
+
         $mode = (string) Setting::get('webhook_auth', 'header');
         $secret = (string) Setting::get('webhook_secret', '');
 
         try {
-            $req = Http::timeout(15)->acceptJson();
+            $req = Http::timeout(15)->withoutRedirecting()->acceptJson();
 
             if ($mode === 'bearer' && $secret !== '') {
                 $req = $req->withToken($secret);

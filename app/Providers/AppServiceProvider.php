@@ -27,12 +27,24 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Gate::before(function (User $user, string $ability, array $arguments) {
+            if (! $user->is_active) {
+                return false;
+            }
+
+            $subject = $arguments[0] ?? null;
+            $subjectName = is_object($subject) ? class_basename($subject) : (is_string($subject) ? class_basename($subject) : null);
+
+            // Audit log bersifat append-only (immutable), bahkan untuk superadmin.
+            if ($subjectName === 'ActivityLog' && in_array($ability, ['create', 'update', 'delete', 'restore', 'forceDelete'], true)) {
+                return false;
+            }
+
             if ($user->isSuperadmin()) {
                 return true;
             }
 
             $perms = $user->permissions ?? [];
-            $key = Acl::key($ability, $arguments[0] ?? null);
+            $key = Acl::key($ability, $subject);
 
             if (in_array($key, $perms['deny'] ?? [], true)) {
                 return false;

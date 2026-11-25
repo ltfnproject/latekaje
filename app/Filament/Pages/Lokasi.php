@@ -38,6 +38,13 @@ class Lokasi extends Page implements HasTable
 
     protected string $view = 'filament.pages.lokasi';
 
+    public static function canAccess(): bool
+    {
+        $user = auth()->user();
+
+        return $user !== null && $user->is_active && ! $user->isBorrower();
+    }
+
     public function table(Table $table): Table
     {
         return $table

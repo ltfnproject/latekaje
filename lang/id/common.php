@@ -28,6 +28,13 @@ return [
     'nav_settings' => 'Setting',
     'nav_about' => 'Tentang Aplikasi',
     'nav_location_data' => 'Data per Lokasi',
+    'nav_activity_logs' => 'Log Aktivitas',
+    'activity_log_label' => 'Log Aktivitas',
+    'log_time' => 'Waktu',
+    'log_actor' => 'Pelaku',
+    'log_action' => 'Aksi',
+    'log_description' => 'Keterangan',
+    'log_subject' => 'Objek',
 
     // Navigation groups
     'nav_group_transactions' => 'Transaksi',
@@ -45,4 +52,6 @@ return [
     'ability_loan_create' => 'Buat pinjaman',
     'ability_loan_update' => 'Ubah / kembalikan pinjaman',
     'ability_loan_delete' => 'Hapus riwayat pinjam',
+    'ability_loan_approve' => 'ACC / verifikasi pinjaman',
+    'ability_activity_log_view_any' => 'Lihat Log Aktivitas',
 ];

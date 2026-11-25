@@ -74,4 +74,5 @@ return [
     'ability_create' => 'Add unit',
     'ability_update' => 'Update unit',
     'ability_delete' => 'Delete unit',
+    'ability_print_qr' => 'Print QR labels',
 ];

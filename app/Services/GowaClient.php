@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\SafeUrl;
 use Illuminate\Support\Facades\Http;
 
 class GowaClient
@@ -59,7 +60,7 @@ class GowaClient
 
     private function client(): \Illuminate\Http\Client\PendingRequest
     {
-        $req = Http::timeout(15)->acceptJson();
+        $req = Http::timeout(15)->withoutRedirecting()->acceptJson();
 
         if ($this->user) {
             $req = $req->withBasicAuth($this->user, (string) $this->pass);
@@ -72,10 +73,16 @@ class GowaClient
     public function devices(): array
     {
         if ($relay = self::relayConfig()) {
+            $targetUrl = rtrim($relay['url'], '/').'/devices';
+            $check = SafeUrl::validate($targetUrl);
+            if (! $check['ok']) {
+                return ['ok' => false, 'status' => 0, 'body' => '[blocked relay] '.$check['error']];
+            }
+
             try {
-                $res = Http::timeout(15)->acceptJson()
+                $res = Http::timeout(15)->withoutRedirecting()->acceptJson()
                     ->withHeaders(['X-Relay-Secret' => $relay['secret']])
-                    ->get(rtrim($relay['url'], '/').'/devices');
+                    ->get($targetUrl);
 
                 $data = $res->json() ?? [];
                 $ok = $res->successful() && ($data['ok'] ?? false);
@@ -87,8 +94,14 @@ class GowaClient
             }
         }
 
+        $targetUrl = $this->url('/app/devices');
+        $check = SafeUrl::validate($targetUrl);
+        if (! $check['ok']) {
+            return ['ok' => false, 'status' => 0, 'body' => '[blocked] '.$check['error']];
+        }
+
         try {
-            $res = $this->client()->get($this->url('/app/devices'));
+            $res = $this->client()->get($targetUrl);
 
             return ['ok' => $res->successful(), 'status' => $res->status(), 'body' => '[direct '.$this->baseUrl.'] '.mb_substr((string) $res->body(), 0, 400)];
         } catch (\Throwable $e) {
@@ -100,8 +113,14 @@ class GowaClient
     public function sendMessage(string $target, string $message): array
     {
         if ($relay = self::relayConfig()) {
+            $targetUrl = rtrim($relay['url'], '/').'/send';
+            $check = SafeUrl::validate($targetUrl);
+            if (! $check['ok']) {
+                return ['ok' => false, 'status' => 0, 'body' => '[blocked relay] '.$check['error']];
+            }
+
             try {
-                $res = Http::timeout(20)->acceptJson()->post(rtrim($relay['url'], '/').'/send', [
+                $res = Http::timeout(20)->withoutRedirecting()->acceptJson()->post($targetUrl, [
                     'secret' => $relay['secret'],
                     'target' => $target,
                     'message' => $message,
@@ -116,8 +135,14 @@ class GowaClient
             }
         }
 
+        $targetUrl = $this->url('/send/message');
+        $check = SafeUrl::validate($targetUrl);
+        if (! $check['ok']) {
+            return ['ok' => false, 'status' => 0, 'body' => '[blocked] '.$check['error']];
+        }
+
         try {
-            $res = $this->client()->post($this->url('/send/message'), [
+            $res = $this->client()->post($targetUrl, [
                 'phone' => $target,
                 'message' => $message,
             ]);

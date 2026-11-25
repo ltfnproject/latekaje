@@ -9,29 +9,35 @@ class AssetItemPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user->role !== 'users';
+        return $user->is_active && ! $user->isBorrower();
     }
 
     public function view(User $user, AssetItem $assetItem): bool
     {
-        return $user->role !== 'users';
+        return $user->is_active && ! $user->isBorrower();
     }
 
     public function create(User $user): bool
     {
-        return in_array($user->role, ['superadmin', 'admin', 'staff', 'assistant'], true);
+        return $user->is_active && in_array($user->role, ['superadmin', 'admin', 'staff', 'assistant'], true);
     }
 
     public function update(User $user, AssetItem $assetItem): bool
     {
-        return in_array($user->role, ['superadmin', 'admin', 'staff', 'assistant'], true);
+        return $user->is_active && in_array($user->role, ['superadmin', 'admin', 'staff', 'assistant'], true);
+    }
+
+    public function print(User $user): bool
+    {
+        return $user->canPrintQr();
     }
 
     public function delete(User $user, AssetItem $assetItem): bool
     {
-        // Boleh hapus bila tidak ada pinjaman AKTIF. Riwayat yang sudah
-        // kembali tetap tersimpan (asset_item_id di-set NULL).
-        return in_array($user->role, ['superadmin', 'admin'], true)
+        // Hanya Superadmin & KKK (admin) yang boleh hapus unit, bila tidak ada pinjaman AKTIF.
+        // Toolman (staff) dan Admin Lab/Prakerin (assistant) tidak boleh menghapus permanen.
+        return $user->is_active
+            && in_array($user->role, ['superadmin', 'admin'], true)
             && ! $assetItem->loans()->where('status', 'aktif')->exists();
     }
 }

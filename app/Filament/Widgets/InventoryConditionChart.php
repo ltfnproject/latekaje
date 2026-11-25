@@ -9,6 +9,13 @@ class InventoryConditionChart extends ChartWidget
 {
     protected static ?int $sort = 2;
 
+    public static function canView(): bool
+    {
+        $user = auth()->user();
+
+        return $user !== null && $user->is_active && ! $user->isBorrower();
+    }
+
     public function getHeading(): ?string
     {
         return __('dashboard.condition_heading');

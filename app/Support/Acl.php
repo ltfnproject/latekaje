@@ -20,14 +20,17 @@ class Acl
             'create:AssetItem' => __('units.ability_create'),
             'update:AssetItem' => __('units.ability_update'),
             'delete:AssetItem' => __('units.ability_delete'),
+            'print:AssetItem' => __('units.ability_print_qr'),
             'viewAny:Loan' => __('common.ability_loan_view_any'),
             'create:Loan' => __('common.ability_loan_create'),
             'update:Loan' => __('common.ability_loan_update'),
             'delete:Loan' => __('common.ability_loan_delete'),
+            'approve:Loan' => __('common.ability_loan_approve'),
             'viewAny:Location' => __('locations.ability_view_any'),
             'viewAny:Group' => __('groups.ability_view_any'),
             'viewAny:Member' => __('members.ability_view_any'),
             'create:Member' => __('members.ability_create'),
+            'viewAny:ActivityLog' => __('common.ability_activity_log_view_any'),
         ];
     }
 

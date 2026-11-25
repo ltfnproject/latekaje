@@ -58,12 +58,21 @@ class DatabaseSeeder extends Seeder
         );
 
         foreach ([
-            ['1001', 'Budi Santoso', 'X TJKT 1'],
-            ['1002', 'Siti Aminah', 'X TJKT 1'],
-            ['1003', 'Andi Pratama', 'X TJKT 2'],
-        ] as [$code, $name, $group]) {
+            ['1001', 'Budi Santoso', 'X TJKT 1', Member::TYPE_STUDENT, '2009-05-14'],
+            ['1002', 'Siti Aminah', 'X TJKT 1', Member::TYPE_STUDENT, '2009-08-21'],
+            ['1003', 'Andi Pratama', 'X TJKT 2', Member::TYPE_STUDENT, '2009-11-03'],
+        ] as [$code, $name, $group, $memberType, $birthDate]) {
             Group::firstOrCreate(['key' => \Illuminate\Support\Str::slug($group, '_')], ['label' => $group]);
-            Member::firstOrCreate(['code' => $code], ['name' => $name, 'group' => $group, 'aktif' => true]);
+            Member::firstOrCreate(
+                ['code' => $code],
+                [
+                    'name' => $name,
+                    'group' => $group,
+                    'member_type' => $memberType,
+                    'birth_date' => $birthDate,
+                    'aktif' => true,
+                ]
+            );
         }
 
         foreach ([

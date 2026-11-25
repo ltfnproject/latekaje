@@ -12,6 +12,13 @@ class InventoryOverview extends StatsOverviewWidget
 
     protected int|string|array $columnSpan = 'full';
 
+    public static function canView(): bool
+    {
+        $user = auth()->user();
+
+        return $user !== null && $user->is_active && ! $user->isBorrower();
+    }
+
     protected function getStats(): array
     {
         $total = AssetItem::query()->count();

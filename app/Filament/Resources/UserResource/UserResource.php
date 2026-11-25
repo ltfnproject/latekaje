@@ -6,6 +6,7 @@ use App\Filament\Resources\UserResource\Pages\CreateUser;
 use App\Filament\Resources\UserResource\Pages\EditUser;
 use App\Filament\Resources\UserResource\Pages\ListUsers;
 use App\Models\User;
+use App\Services\ActivityLogger;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
@@ -92,6 +93,11 @@ class UserResource extends Resource
                 ->label(__('users.account_active_label'))
                 ->default(true)
                 ->helperText(__('users.account_active_helper')),
+
+            Toggle::make('must_change_password')
+                ->label(__('users.must_change_password_label'))
+                ->default(false)
+                ->helperText(__('users.must_change_password_helper')),
 
             CheckboxList::make('permissions.allow')
                 ->label(__('users.perm_allow_label'))
@@ -192,12 +198,20 @@ class UserResource extends Resource
                     ->icon(fn ($record): string => $record->is_active ? 'heroicon-o-no-symbol' : 'heroicon-o-check-circle')
                     ->color(fn ($record): string => $record->is_active ? 'danger' : 'success')
                     ->requiresConfirmation()
-                    ->visible(fn (): bool => auth()->user()?->isSuperadmin())
+                    ->visible(fn (): bool => (bool) auth()->user()?->isSuperadmin())
                     ->action(function ($record): void {
-                        $record->update(['is_active' => ! $record->is_active]);
+                        abort_unless((bool) auth()->user()?->isSuperadmin(), 403);
 
-                        if (! $record->is_active) {
-                            \Illuminate\Support\Facades\DB::table('sessions')->where('user_id', $record->id)->delete();
+                        $newState = ! $record->is_active;
+                        $record->update(['is_active' => $newState]);
+
+                        if ($newState) {
+                            ActivityLogger::log(
+                                'user.activated',
+                                "Mengaktifkan kembali akun {$record->name} ({$record->email})",
+                                $record,
+                                ['target_role' => $record->role],
+                            );
                         }
 
                         Notification::make()

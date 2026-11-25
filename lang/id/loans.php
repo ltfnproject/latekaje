@@ -36,6 +36,7 @@ return [
 
     // Return record action + modal
     'action_return' => 'Kembalikan',
+    'action_view_photo' => 'Foto Bukti',
     'return_modal_heading' => 'Kembalikan Alat',
     'action_force_close' => 'Tutup Paksa',
     'force_close_heading' => 'Tutup Paksa Pinjaman',
@@ -68,7 +69,8 @@ return [
     'val_borrowed' => 'Alat sedang dipinjam.',
     'val_damaged' => 'Alat kondisi rusak, tidak layak pinjam.',
     'step2_title' => 'Langkah 2 — Siapa yang Meminjam',
-    'step2_desc' => 'Tulis nama asli sesuai absen. Akun ini dipakai bersama, jadi jangan asal isi.',
+    'step2_desc' => 'Pilih anggota dari daftar master atau isi manual untuk petugas.',
+    'step2_desc_self' => 'Identitas peminjam terkunci otomatis sesuai akun Anda.',
     'reuse_prefix' => 'Pakai lagi: ',
     'select_member' => 'Pilih Anggota (ketik nama / ID)',
     'code_label' => 'ID Anggota',

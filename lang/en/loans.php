@@ -36,6 +36,7 @@ return [
 
     // Return record action + modal
     'action_return' => 'Return',
+    'action_view_photo' => 'Proof Photo',
     'return_modal_heading' => 'Return Tool',
     'action_force_close' => 'Force Close',
     'force_close_heading' => 'Force Close Loan',
@@ -68,7 +69,8 @@ return [
     'val_borrowed' => 'Tool is currently borrowed.',
     'val_damaged' => 'Tool is damaged, not eligible for loan.',
     'step2_title' => 'Step 2 — Who Is Borrowing',
-    'step2_desc' => 'Write your real name as in attendance. This account is shared, so fill it in carefully.',
+    'step2_desc' => 'Select a member from the master list or enter manually (staff mode).',
+    'step2_desc_self' => 'Borrower identity is automatically locked to your account.',
     'reuse_prefix' => 'Reuse: ',
     'select_member' => 'Select Member (type name / ID)',
     'code_label' => 'Member ID',

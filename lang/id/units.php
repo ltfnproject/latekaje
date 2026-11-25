@@ -74,4 +74,5 @@ return [
     'ability_create' => 'Tambah unit',
     'ability_update' => 'Ubah unit',
     'ability_delete' => 'Hapus unit',
+    'ability_print_qr' => 'Cetak label QR',
 ];

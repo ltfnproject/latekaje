@@ -4,16 +4,40 @@ namespace App\Filament\Pages;
 
 use App\Models\RecapLog;
 use App\Models\Setting;
+use App\Services\ActivityLogger;
 use App\Services\GowaClient;
 use App\Services\RecapService;
 use App\Services\WebhookClient;
+use App\Support\SafeUrl;
 use BackedEnum;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
+use Illuminate\Foundation\Http\MaintenanceModeBypassCookie;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cookie;
 
 class NotificationSettings extends Page
 {
+    private const ALLOWED_KEYS = [
+        'app_locale',
+        'recap_enabled',
+        'recap_time',
+        'gowa_enabled',
+        'gowa_base_url',
+        'gowa_user',
+        'gowa_pass',
+        'gowa_target',
+        'gowa_relay_url',
+        'gowa_relay_secret',
+        'webhook_enabled',
+        'webhook_url',
+        'webhook_auth',
+        'webhook_secret',
+        'webhook_user',
+        'webhook_pass',
+    ];
+
     protected static string | BackedEnum | null $navigationIcon = Heroicon::OutlinedCog6Tooth;
 
     public static function getNavigationLabel(): string
@@ -45,11 +69,19 @@ class NotificationSettings extends Page
 
     public string $testTarget = '';
 
+    public string $apiTest = '';
+
+    public string $newTokenName = '';
+
+    public ?string $newTokenPlain = null;
+
+    public ?string $maintenanceBypassUrl = null;
+
     public static function canAccess(): bool
     {
         $user = auth()->user();
 
-        return $user && ($user->isSuperadmin() || $user->isAdmin());
+        return $user !== null && $user->is_active && ($user->isSuperadmin() || $user->isAdmin());
     }
 
     public function mount(): void
@@ -84,11 +116,50 @@ class NotificationSettings extends Page
             $this->form['app_locale'] = config('app.locale', 'id');
         }
 
-        foreach ($this->form as $key => $value) {
+        // Validasi anti-SSRF pada semua field URL sebelum disimpan
+        $urlChecks = [
+            'gowa_base_url' => GowaClient::normalizeBase((string) ($this->form['gowa_base_url'] ?? '')),
+            'gowa_relay_url' => trim((string) ($this->form['gowa_relay_url'] ?? '')),
+            'webhook_url' => trim((string) ($this->form['webhook_url'] ?? '')),
+        ];
+
+        foreach ($urlChecks as $field => $urlValue) {
+            if ($urlValue === '') {
+                continue;
+            }
+
+            $check = SafeUrl::validate($urlValue);
+            if (! $check['ok']) {
+                Notification::make()
+                    ->title(__('settings.unsafe_url_title'))
+                    ->body("{$field}: {$check['error']}")
+                    ->danger()
+                    ->persistent()
+                    ->send();
+
+                return;
+            }
+        }
+
+        $savedKeys = [];
+        foreach (self::ALLOWED_KEYS as $key) {
+            if (! array_key_exists($key, $this->form)) {
+                continue;
+            }
+
+            $value = $this->form[$key];
             Setting::set($key, is_bool($value) ? ($value ? '1' : '0') : $value);
+            $savedKeys[] = $key;
         }
 
         app()->setLocale(\App\Http\Middleware\SetLocale::resolve());
+
+        ActivityLogger::log(
+            'settings.updated',
+            'Memperbarui pengaturan sistem dan notifikasi',
+            null,
+            ['keys' => $savedKeys],
+        );
 
         Notification::make()->title(__('settings.saved'))->success()->send();
     }
@@ -119,6 +190,7 @@ class NotificationSettings extends Page
 
         if ($target === '') {
             $this->gowaTest = __('settings.fill_test_number');
+
             return;
         }
 
@@ -145,6 +217,7 @@ class NotificationSettings extends Page
         $url = (string) Setting::get('webhook_url', '');
         if ($url === '') {
             $this->webhookTest = __('settings.fill_webhook');
+
             return;
         }
 
@@ -154,30 +227,45 @@ class NotificationSettings extends Page
             : __('settings.webhook_failed', ['status' => $res['status'], 'body' => $res['body']]);
     }
 
-    public string $apiTest = '';
-
-    public string $newTokenName = '';
-
-    public ?string $newTokenPlain = null;
-
     public function toggleMaintenance(): void
     {
         abort_unless(self::canAccess(), 403);
 
         if (app()->isDownForMaintenance()) {
-            \Illuminate\Support\Facades\Artisan::call('up');
+            Artisan::call('up');
+            $this->maintenanceBypassUrl = null;
+
+            ActivityLogger::log('system.maintenance_off', 'Mematikan mode perawatan aplikasi');
 
             Notification::make()->title(__('settings.maintenance_off'))->success()->send();
         } else {
-            \Illuminate\Support\Facades\Artisan::call('down', ['--render' => 'errors::503']);
+            $secret = bin2hex(random_bytes(16));
 
-            Notification::make()->title(__('settings.maintenance_on'))->warning()->persistent()->send();
+            Artisan::call('down', [
+                '--render' => 'errors::503',
+                '--secret' => $secret,
+            ]);
+
+            if (class_exists(MaintenanceModeBypassCookie::class)) {
+                Cookie::queue(MaintenanceModeBypassCookie::create($secret));
+            }
+
+            $this->maintenanceBypassUrl = url('/'.$secret);
+
+            ActivityLogger::log('system.maintenance_on', 'Menyalakan mode perawatan aplikasi dengan bypass secret');
+
+            Notification::make()
+                ->title(__('settings.maintenance_on'))
+                ->body(__('settings.maintenance_bypass_notice', ['url' => $this->maintenanceBypassUrl]))
+                ->warning()
+                ->persistent()
+                ->send();
         }
     }
 
     public function createApiToken(): void
     {
-        abort_unless(auth()->user()?->isSuperadmin(), 403);
+        abort_unless((bool) auth()->user()?->isSuperadmin(), 403);
 
         $name = trim($this->newTokenName);
 
@@ -191,14 +279,20 @@ class NotificationSettings extends Page
         $this->newTokenPlain = $token->plainTextToken;
         $this->newTokenName = '';
 
+        ActivityLogger::log('api_token.created', "Membuat API token '{$name}'", null, ['token_name' => $name]);
+
         Notification::make()->title(__('settings.token_created'))->success()->persistent()->send();
     }
 
     public function revokeApiToken(int $id): void
     {
-        abort_unless(auth()->user()?->isSuperadmin(), 403);
+        abort_unless((bool) auth()->user()?->isSuperadmin(), 403);
 
-        auth()->user()->tokens()->whereKey($id)->delete();
+        $deleted = auth()->user()->tokens()->whereKey($id)->delete();
+
+        if ($deleted > 0) {
+            ActivityLogger::log('api_token.revoked', "Mencabut API token #{$id}", null, ['token_id' => $id]);
+        }
 
         Notification::make()->title(__('settings.token_revoked'))->success()->send();
     }
@@ -221,7 +315,7 @@ class NotificationSettings extends Page
         return [
             'logs' => RecapLog::latest()->limit(10)->get(),
             'unreturnedCount' => \App\Models\Loan::where('status', 'aktif')->count(),
-            'scheduleTime' => \App\Models\Setting::get('recap_time', '16:00'),
+            'scheduleTime' => Setting::get('recap_time', '16:00'),
             'maintenance' => app()->isDownForMaintenance(),
             'tokens' => auth()->user()?->isSuperadmin() ? auth()->user()->tokens()->latest()->get() : collect(),
         ];

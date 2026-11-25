@@ -50,17 +50,25 @@ class LoanResource extends Resource
         $query = parent::getEloquentQuery();
         $user = auth()->user();
 
-        // Akun peminjam pribadi (role users + identitas) hanya melihat
-        // pinjamannya sendiri. Staf dan akun kiosk generik melihat semua.
-        if ($user?->role === 'users' && ($user->code || $user->member_id)) {
-            $query->where(function (Builder $w) use ($user) {
-                if ($user->code) {
-                    $w->orWhere('code', $user->code);
-                }
-                if ($user->member_id) {
-                    $w->orWhere('member_id', $user->member_id);
-                }
-            });
+        if (! $user) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        // Peminjam (`role=users`) HANYA boleh melihat pinjaman miliknya sendiri.
+        // Fail-closed bila akun tidak punya identitas (`code`/`member_id`), kecuali mode kiosk diaktifkan eksplisit.
+        if ($user->isBorrower()) {
+            if ($user->code || $user->member_id) {
+                $query->where(function (Builder $w) use ($user): void {
+                    if ($user->code) {
+                        $w->orWhere('code', $user->code);
+                    }
+                    if ($user->member_id) {
+                        $w->orWhere('member_id', $user->member_id);
+                    }
+                });
+            } elseif (! config('latekaje.allow_generic_kiosk', false)) {
+                $query->whereRaw('1 = 0');
+            }
         }
 
         return $query;

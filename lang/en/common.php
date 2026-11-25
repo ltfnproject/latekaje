@@ -28,6 +28,13 @@ return [
     'nav_settings' => 'Settings',
     'nav_about' => 'About App',
     'nav_location_data' => 'Data per Location',
+    'nav_activity_logs' => 'Activity Logs',
+    'activity_log_label' => 'Activity Log',
+    'log_time' => 'Time',
+    'log_actor' => 'Actor',
+    'log_action' => 'Action',
+    'log_description' => 'Description',
+    'log_subject' => 'Subject',
 
     // Navigation groups
     'nav_group_transactions' => 'Transactions',
@@ -45,4 +52,6 @@ return [
     'ability_loan_create' => 'Create loan',
     'ability_loan_update' => 'Update / return loan',
     'ability_loan_delete' => 'Delete loan history',
+    'ability_loan_approve' => 'Approve / verify loans',
+    'ability_activity_log_view_any' => 'View Activity Logs',
 ];

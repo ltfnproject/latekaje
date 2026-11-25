@@ -16,6 +16,13 @@ class UnreturnedTable extends BaseWidget
 
     protected int | string | array $columnSpan = 'full';
 
+    public static function canView(): bool
+    {
+        $user = auth()->user();
+
+        return $user !== null && $user->is_active && ! $user->isBorrower();
+    }
+
     protected function getTableHeading(): string | \Illuminate\Contracts\Support\Htmlable | null
     {
         return __('dashboard.unreturned_heading');
@@ -37,6 +44,8 @@ class UnreturnedTable extends BaseWidget
                     ->color('info')
                     ->visible(fn (): bool => in_array(auth()->user()?->role, ['superadmin', 'admin', 'staff', 'assistant'], true))
                     ->action(function (): void {
+                        abort_unless(in_array(auth()->user()?->role, ['superadmin', 'admin', 'staff', 'assistant'], true), 403);
+
                         $result = RecapService::sendNow();
 
                         Notification::make()

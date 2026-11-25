@@ -52,10 +52,12 @@ class AccountSecurityTest extends TestCase
         $tool->update(['permissions' => null]);
 
         // 4. Halaman user + setting render
-        $admin = User::where('email', 'admin@gmail.com')->first();
+        $admin = User::where('email', 'admin@gmail.com')->first()
+            ?? User::where('role', 'superadmin')->first();
         if (! $admin) {
             $this->markTestSkipped('Admin user tidak ditemukan');
         }
+        $this->flushSession();
         $this->actingAs($admin);
         $this->get('/admin/user-resource/users')->assertOk();
         $this->get('/admin/setting')->assertOk();

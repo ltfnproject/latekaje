@@ -25,10 +25,11 @@ class ListMembers extends ListRecords
                 ->icon('heroicon-o-document-arrow-down')
                 ->color('gray')
                 ->action(function () {
-                    $headers = ['code', 'name', 'group'];
+                    $headers = ['code', 'name', 'group', 'member_type', 'birth_date'];
                     $rows = [
-                        ['1001', 'Budi Santoso', 'X TJKT 1'],
-                        ['1002', 'Siti Aminah', 'X TJKT 1'],
+                        ['1001', 'Budi Santoso', 'X TJKT 1', 'student', '2009-05-14'],
+                        ['1002', 'Siti Aminah', 'X TJKT 1', 'student', '2009-08-21'],
+                        ['G001', 'Ahmad Fauzi', 'GURU / STAF', 'teacher', '1986-04-12'],
                     ];
 
                     return response()->streamDownload(function () use ($headers, $rows) {

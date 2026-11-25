@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Loans\Tables;
 
 use App\Filament\Exports\LoanExporter;
 use App\Services\LoanService;
+use App\Services\SecureImageService;
 use Filament\Actions\Action;
 use Filament\Actions\ExportAction;
 use Filament\Actions\Exports\Enums\ExportFormat;
@@ -119,6 +120,13 @@ class LoansTable
                     ->color('success'),
             ])
             ->recordActions([
+                Action::make('lihatFoto')
+                    ->label(__('loans.action_view_photo'))
+                    ->icon('heroicon-o-photo')
+                    ->color('gray')
+                    ->visible(fn ($record): bool => filled($record->return_photo_path) && (bool) auth()->user()?->can('view', $record))
+                    ->url(fn ($record): string => route('files.loans.return-photo', $record))
+                    ->openUrlInNewTab(),
                 Action::make('forceClose')
                     ->label(__('loans.action_force_close'))
                     ->icon('heroicon-o-bolt')
@@ -155,7 +163,7 @@ class LoansTable
                     ->label(__('loans.action_return'))
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
-                    ->visible(fn ($record): bool => $record->status === 'aktif')
+                    ->visible(fn ($record): bool => $record->status === 'aktif' && (bool) auth()->user()?->can('view', $record))
                     ->modalHeading(__('loans.return_modal_heading'))
                     ->modalDescription(new HtmlString('
                         <div x-data="latekajeScanner(\'reader-table-return\', \'qr-table-return-field\')" x-init="init()" style="margin-bottom: 0.75rem;">
@@ -212,24 +220,39 @@ class LoansTable
 
                         TextInput::make('received_by')
                             ->label(__('loans.form_received_by_label'))
-                            ->placeholder(__('loans.form_received_by_placeholder')),
+                            ->placeholder(__('loans.form_received_by_placeholder'))
+                            ->visible(fn (): bool => ! auth()->user()?->isBorrower()),
 
                         FileUpload::make('return_photo_path')
                             ->label(__('loans.form_photo_label'))
                             ->image()
-                            ->disk('public')
-                            ->directory('returns')
-                            ->maxSize(2048),
+                            ->disk('local')
+                            ->directory('returns/raw')
+                            ->visibility('private')
+                            ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/webp'])
+                            ->maxSize(4096),
                     ])
                     ->action(function ($record, array $data): void {
+                        $user = auth()->user();
+                        abort_unless($user !== null && (! $user->isBorrower() || $user->ownsLoan($record)), 403);
+
+                        // Anti-spoofing: peminjam tidak boleh mengisi received_by (metode petugas).
+                        $receivedBy = $user->isBorrower() ? '' : (string) ($data['received_by'] ?? '');
+
+                        $photoPath = $data['return_photo_path'] ?? null;
+
                         try {
+                            if (filled($photoPath) && is_string($photoPath)) {
+                                $photoPath = SecureImageService::sanitizeStoredImage($photoPath, 'local', 'returns');
+                            }
+
                             LoanService::returnLoan($record, [
                                 'qr' => (string) ($data['nomor_seri_atau_qr'] ?? ''),
                                 'pin' => (string) ($data['pin'] ?? ''),
                                 'returned_by' => (string) ($data['returned_by'] ?? ''),
                                 'return_relation' => (string) ($data['return_relation'] ?? 'sendiri'),
-                                'received_by' => (string) ($data['received_by'] ?? ''),
-                                'return_photo_path' => $data['return_photo_path'] ?? null,
+                                'received_by' => $receivedBy,
+                                'return_photo_path' => $photoPath,
                             ]);
                         } catch (ValidationException $e) {
                             Notification::make()

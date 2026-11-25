@@ -49,6 +49,26 @@ class LoanForm
         return auth()->user()?->code;
     }
 
+    private static function canSelectAnyMember(): bool
+    {
+        $user = auth()->user();
+
+        if (! $user) {
+            return false;
+        }
+
+        if (! $user->isBorrower()) {
+            return true;
+        }
+
+        return $user->isGenericKiosk() && (bool) config('latekaje.allow_generic_kiosk', false);
+    }
+
+    private static function isLockedPersonalBorrower(): bool
+    {
+        return (bool) auth()->user()?->isPersonalBorrower();
+    }
+
     public static function configure(Schema $schema): Schema
     {
         return $schema->components([
@@ -132,10 +152,11 @@ class LoanForm
                 ]),
 
             Section::make(__('loans.step2_title'))
-                ->description(__('loans.step2_desc'))
+                ->description(fn (): string => self::isLockedPersonalBorrower() ? __('loans.step2_desc_self') : __('loans.step2_desc'))
                 ->schema([
                     Placeholder::make('borrower_memory')
                         ->hiddenLabel()
+                        ->visible(fn (): bool => self::canSelectAnyMember())
                         ->content(new HtmlString('
                             <div x-data="{ show: false, label: \'\' }" x-init="
                                 const KEY = \'latekaje_last_borrower\';
@@ -196,8 +217,11 @@ class LoanForm
                     Select::make('member_id')
                         ->label(__('loans.select_member'))
                         ->default(fn () => auth()->user()?->member_id)
+                        ->visible(fn (): bool => self::canSelectAnyMember())
                         ->searchable()
-                        ->options(fn () => Member::where('aktif', true)->orderBy('name')->get()->mapWithKeys(fn ($st) => [$st->id => $st->label()]))
+                        ->options(fn () => self::canSelectAnyMember()
+                            ? Member::where('aktif', true)->orderBy('name')->get()->mapWithKeys(fn ($st) => [$st->id => $st->label()])
+                            : [])
                         ->afterStateUpdated(function (Set $set, $state): void {
                             $st = $state ? Member::find($state) : null;
                             $set('code', $st?->code);
@@ -206,7 +230,7 @@ class LoanForm
                                 $set('group', $st->group);
                             }
                         })
-                        ->createOptionForm([
+                        ->createOptionForm(fn (): ?array => auth()->user() && ! auth()->user()->isBorrower() ? [
                             TextInput::make('code')
                                 ->label(__('loans.code_label'))
                                 ->maxLength(64),
@@ -219,20 +243,27 @@ class LoanForm
                                 ->required()
                                 ->searchable()
                                 ->options(fn () => Group::orderBy('label')->pluck('label', 'label')),
-                        ])
-                        ->createOptionUsing(fn (array $data): int => Member::create([
-                            'code' => blank($data['code'] ?? null) ? null : trim((string) $data['code']),
-                            'name' => trim((string) $data['name']),
-                            'group' => $data['group'],
-                            'aktif' => true,
-                        ])->getKey())
+                        ] : null)
+                        ->createOptionUsing(function (array $data): int {
+                            abort_if((bool) auth()->user()?->isBorrower(), 403);
+
+                            return Member::create([
+                                'code' => blank($data['code'] ?? null) ? null : trim((string) $data['code']),
+                                'name' => trim((string) $data['name']),
+                                'group' => $data['group'],
+                                'aktif' => true,
+                            ])->getKey();
+                        })
                         ->helperText(__('loans.helper_new_member')),
 
-                    Hidden::make('code'),
+                    Hidden::make('code')
+                        ->default(fn () => self::selfCode()),
 
                     TextInput::make('borrower_name')
                         ->label(__('loans.full_name'))
                         ->default(fn () => self::selfName())
+                        ->disabled(fn (): bool => self::isLockedPersonalBorrower())
+                        ->dehydrated(true)
                         ->placeholder(__('loans.name_auto_placeholder'))
                         ->required()
                         ->maxLength(255)
@@ -241,6 +272,8 @@ class LoanForm
                     Select::make('group')
                         ->label(__('loans.group_origin'))
                         ->default(fn () => self::selfGroup())
+                        ->disabled(fn (): bool => self::isLockedPersonalBorrower())
+                        ->dehydrated(true)
                         ->required()
                         ->searchable()
                         ->options(fn () => Group::orderBy('label')->pluck('label', 'label'))

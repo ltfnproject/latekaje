@@ -4,6 +4,8 @@ namespace App\Filament\Resources\AssetItems\Tables;
 
 use App\Filament\Exports\AssetItemExporter;
 use App\Filament\Imports\AssetItemImporter;
+use App\Models\AssetItem;
+use Illuminate\Support\Facades\Gate;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\BulkAction;
@@ -118,6 +120,7 @@ class AssetItemsTable
                 Action::make('printAllQr')
                     ->label(__('units.print_all_qr'))
                     ->icon('heroicon-o-qr-code')
+                    ->visible(fn (): bool => Gate::allows('print', AssetItem::class))
                     ->url(fn (): string => route('print.qr', ['ids' => 'all']))
                     ->openUrlInNewTab(),
             ])
@@ -130,6 +133,7 @@ class AssetItemsTable
                     Action::make('printQr')
                         ->label(__('units.print_qr'))
                         ->icon('heroicon-o-qr-code')
+                        ->visible(fn (): bool => Gate::allows('print', AssetItem::class))
                         ->url(fn ($record): string => route('print.qr', ['ids' => $record->getKey()]))
                         ->openUrlInNewTab(),
                 ])
@@ -143,6 +147,7 @@ class AssetItemsTable
                     BulkAction::make('printBulkQr')
                         ->label(__('units.print_selected_qr'))
                         ->icon('heroicon-o-qr-code')
+                        ->visible(fn (): bool => Gate::allows('print', AssetItem::class))
                         ->action(fn (Collection $records) => redirect()->away(
                             route('print.qr', ['ids' => $records->pluck('id')->implode(',')])
                         ))

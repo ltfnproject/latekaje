@@ -13,6 +13,13 @@ class AttentionUnitsTable extends BaseWidget
 
     protected int | string | array $columnSpan = 1;
 
+    public static function canView(): bool
+    {
+        $user = auth()->user();
+
+        return $user !== null && $user->is_active && ! $user->isBorrower();
+    }
+
     protected function getTableHeading(): string | \Illuminate\Contracts\Support\Htmlable | null
     {
         return __('dashboard.attention_heading');

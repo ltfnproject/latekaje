@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Loans\Pages;
 
 use App\Filament\Resources\Loans\LoanResource;
 use App\Models\Loan;
+use App\Models\Member;
 use App\Services\LoanService;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
@@ -14,10 +15,22 @@ class CreateLoan extends CreateRecord
 
     protected function handleRecordCreation(array $data): Loan
     {
+        $user = auth()->user();
         $memberId = isset($data['member_id']) && $data['member_id'] !== '' ? (int) $data['member_id'] : null;
 
-        // Konsistensi: bila anggota dipilih, snapshot identitas diambil dari master.
-        if ($memberId && ($member = \App\Models\Member::find($memberId))) {
+        // Anti-impersonasi: akun peminjam wajib memakai identitas miliknya sendiri di sisi server.
+        if ($user?->isBorrower()) {
+            if ($user->isPersonalBorrower()) {
+                $member = $user->member ?: ($user->code ? Member::where('code', $user->code)->first() : null);
+                $memberId = $member?->id ?? $user->member_id;
+                $data['code'] = $member?->code ?? $user->code;
+                $data['borrower_name'] = $member?->name ?? $user->name;
+                $data['group'] = $member?->group ?? ($data['group'] ?? '-');
+            } elseif (! config('latekaje.allow_generic_kiosk', false)) {
+                abort(403, 'Akun peminjam belum terhubung ke data anggota.');
+            }
+        } elseif ($memberId && ($member = Member::find($memberId))) {
+            // Konsistensi: bila petugas memilih anggota, snapshot identitas diambil dari master.
             $data['code'] = $member->code;
             $data['borrower_name'] = $member->name;
             $data['group'] = $member->group;

@@ -61,7 +61,9 @@ class AdminPanelProvider extends PanelProvider
                 DispatchServingFilamentEvent::class,
             ])
             ->authMiddleware([
+                \App\Http\Middleware\EnsureUserIsActive::class,
                 Authenticate::class,
+                \App\Http\Middleware\EnsurePasswordChanged::class,
             ])
             ->renderHook(
                 PanelsRenderHook::HEAD_END,
@@ -84,7 +86,7 @@ class AdminPanelProvider extends PanelProvider
                     return '<script>window.LATEKAJE_SCAN=' . $scan . ';</script>'
                         . <<<'HTML'
                     <link rel="stylesheet" href="/css/latekaje.css?v=1" />
-                    <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+                    <script src="/js/vendor/html5-qrcode.min.js?v=2.3.8"></script>
                     <style>
                     #reader-loan-inline, #reader-table-return { background: #000; }
                     </style>
@@ -97,7 +99,7 @@ class AdminPanelProvider extends PanelProvider
                             if (this._pending) return this._pending;
                             this._pending = new Promise(function (resolve, reject) {
                                 var s = document.createElement('script');
-                                s.src = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
+                                s.src = '/js/vendor/html5-qrcode.min.js?v=2.3.8';
                                 s.onload = function () { window.Html5Qrcode ? resolve() : reject(new Error('lib')); };
                                 s.onerror = function () { reject(new Error('lib')); };
                                 document.head.appendChild(s);

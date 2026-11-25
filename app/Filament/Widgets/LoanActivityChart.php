@@ -19,6 +19,13 @@ class LoanActivityChart extends ChartWidget
 
     protected ?string $maxHeight = '260px';
 
+    public static function canView(): bool
+    {
+        $user = auth()->user();
+
+        return $user !== null && $user->is_active && ! $user->isBorrower();
+    }
+
     protected function getData(): array
     {
         $labels = [];
