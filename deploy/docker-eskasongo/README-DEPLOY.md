@@ -79,12 +79,15 @@ docker compose up -d
 ## Langkah 5 — Atur Permission (Tanpa `chmod 777`), Install Vendor, & Inisialisasi Laravel
 Jalankan Composer langsung di dalam container `smk-latekaje-web` agar seluruh ekstensi PHP 8.4 (`intl`, `gd`, `zip`, `pdo_mysql`) cocok 100%:
 ```bash
-docker exec smk-latekaje-web chown -R application:application /var/www/html/storage /var/www/html/bootstrap/cache
+docker exec smk-latekaje-web chown application:application /var/www/html/.env
+docker exec smk-latekaje-web chmod 600 /var/www/html/.env
+docker exec smk-latekaje-web chown -R application:application /var/www/html/public /var/www/html/storage /var/www/html/bootstrap/cache
 docker exec smk-latekaje-web chmod -R ug+rwx /var/www/html/storage /var/www/html/bootstrap/cache
 
 docker exec smk-latekaje-web composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
-docker exec smk-latekaje-web chown -R application:application /var/www/html/vendor /var/www/html/storage /var/www/html/bootstrap/cache
+docker exec smk-latekaje-web chown -R application:application /var/www/html/vendor /var/www/html/public /var/www/html/storage /var/www/html/bootstrap/cache
 
+docker exec -u application smk-latekaje-web php artisan optimize:clear
 docker exec -u application smk-latekaje-web php artisan key:generate --force
 docker exec -u application smk-latekaje-web php artisan migrate --force --seed
 docker exec -u application smk-latekaje-web php artisan storage:link
