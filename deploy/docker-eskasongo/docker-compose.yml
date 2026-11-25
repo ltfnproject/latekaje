@@ -9,9 +9,11 @@ services:
   smk-latekaje-web:
     image: webdevops/php-nginx:8.4-alpine
     container_name: smk-latekaje-web
+    working_dir: /var/www/html
     restart: unless-stopped
     environment:
       WEB_DOCUMENT_ROOT: /var/www/html/public
+      WEB_DOCUMENT_INDEX: index.php
       PHP_MEMORY_LIMIT: 256M
       PHP_MAX_EXECUTION_TIME: 120
       PHP_POST_MAX_SIZE: 16M
