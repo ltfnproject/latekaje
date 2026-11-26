@@ -15,6 +15,10 @@ return [
     'status' => 'Status',
     'active' => 'Aktif',
     'all' => 'Semua',
+    'theme_light' => 'Mode Terang',
+    'theme_dark' => 'Mode Gelap',
+    'switch_light_mode' => 'Beralih ke mode terang',
+    'switch_dark_mode' => 'Beralih ke mode gelap',
 
     // Navigation
     'nav_dashboard' => 'Dasbor',

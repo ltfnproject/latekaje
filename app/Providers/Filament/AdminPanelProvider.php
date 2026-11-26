@@ -2,6 +2,7 @@
 
 namespace App\Providers\Filament;
 
+use Filament\Enums\ThemeMode;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
@@ -33,6 +34,8 @@ class AdminPanelProvider extends PanelProvider
             ->brandLogo('/images/logo.png')
             ->brandLogoHeight('2.8rem')
             ->favicon('/images/favicon.png')
+            ->darkMode(true)
+            ->defaultThemeMode(ThemeMode::System)
             ->colors([
                 'primary' => Color::Amber,
             ])
@@ -85,7 +88,7 @@ class AdminPanelProvider extends PanelProvider
 
                     return '<script>window.LATEKAJE_SCAN=' . $scan . ';</script>'
                         . <<<'HTML'
-                    <link rel="stylesheet" href="/css/latekaje.css?v=1" />
+                    <link rel="stylesheet" href="/css/latekaje.css?v=2" />
                     <script src="/js/vendor/html5-qrcode.min.js?v=2.3.8"></script>
                     <style>
                     #reader-loan-inline, #reader-table-return { background: #000; }
@@ -230,6 +233,14 @@ class AdminPanelProvider extends PanelProvider
                     </script>
                     HTML;
                 }
+            )
+            ->renderHook(
+                PanelsRenderHook::USER_MENU_BEFORE,
+                static fn () => view('filament.components.theme-toggle'),
+            )
+            ->renderHook(
+                PanelsRenderHook::AUTH_LOGIN_FORM_BEFORE,
+                static fn () => '<div class="lk-auth-theme-bar">'.view('filament.components.theme-toggle', ['showLabel' => true])->render().'</div>',
             )
             ->renderHook(
                 PanelsRenderHook::BODY_END,

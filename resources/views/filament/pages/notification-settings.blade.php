@@ -23,7 +23,7 @@
             @if($maintenanceBypassUrl)
             <div class="lk-btnrow" style="margin-top: 0.75rem;">
                 <span class="lk-note">{{ __('settings.maintenance_bypass_label') }}</span>
-                <code class="lk-mono" style="user-select: all;">{{ $maintenanceBypassUrl }}</code>
+                <code class="lk-code-box lk-mono" style="user-select: all;">{{ $maintenanceBypassUrl }}</code>
             </div>
             @endif
 
@@ -75,7 +75,7 @@
             </div>
             @if($newTokenPlain)
             <div class="lk-btnrow">
-                <code class="lk-mono" style="user-select: all;">{{ $newTokenPlain }}</code>
+                <code class="lk-code-box lk-mono" style="user-select: all;">{{ $newTokenPlain }}</code>
             </div>
             @endif
             <div class="lk-tablewrap" style="margin-top: 1rem;">
@@ -251,7 +251,7 @@
                             <td class="lk-mono">{{ $log->target }}</td>
                             <td>{{ $log->total }}</td>
                             <td>{{ $log->status }}</td>
-                            <td class="lk-mono" style="color: #6b7280;">{{ \Illuminate\Support\Str::limit($log->response ?? '', 60) }}</td>
+                            <td class="lk-mono lk-muted">{{ \Illuminate\Support\Str::limit($log->response ?? '', 60) }}</td>
                         </tr>
                         @empty
                         <tr><td colspan="6" class="lk-empty">{{ __("settings.empty_logs") }}</td></tr>

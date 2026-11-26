@@ -52,7 +52,7 @@
             document.body.appendChild(box);
         }
         var el = document.createElement('div');
-        el.style.cssText = 'background:#111827;color:#fff;padding:10px 14px;border-radius:10px;font-size:13px;box-shadow:0 4px 14px rgba(0,0,0,.3);';
+        el.className = 'lk-toast';
         el.textContent = msg;
         box.appendChild(el);
         setTimeout(function () { el.remove(); }, 6000);

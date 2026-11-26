@@ -1,6 +1,65 @@
-/* LATEKAJE custom UI (tanpa build step, langsung diload) */
+/* LATEKAJE v4 Design Tokens & Custom UI (tanpa build step, Light & Dark Mode siap pakai) */
 
-/* 1. Tombol aksi rata kanan (ramah jempol) */
+:root {
+    --lk-surface: #ffffff;
+    --lk-surface-alt: #f9fafb;
+    --lk-surface-hover: #f3f4f6;
+    --lk-border: #d1d5db;
+    --lk-border-subtle: #e5e7eb;
+    --lk-text: #111827;
+    --lk-text-muted: #6b7280;
+    --lk-text-subtle: #9ca3af;
+    --lk-primary: #d97706;
+    --lk-primary-hover: #b45309;
+    --lk-primary-soft: #fef3c7;
+    --lk-primary-border: #fbbf24;
+    --lk-primary-text: #92400e;
+    --lk-info-soft: #e0f2fe;
+    --lk-info-text: #075985;
+    --lk-success-soft: #dcfce7;
+    --lk-success-text: #166534;
+    --lk-danger: #dc2626;
+    --lk-danger-soft: #fee2e2;
+    --lk-danger-text: #991b1b;
+    --lk-code-bg: #f3f4f6;
+    --lk-footer-bg: #ffffff;
+    --lk-toast-bg: #111827;
+    --lk-toast-text: #f9fafb;
+    --lk-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.dark {
+    --lk-surface: #18181b;
+    --lk-surface-alt: #27272a;
+    --lk-surface-hover: #3f3f46;
+    --lk-border: #3f3f46;
+    --lk-border-subtle: #27272a;
+    --lk-text: #f4f4f5;
+    --lk-text-muted: #a1a1aa;
+    --lk-text-subtle: #71717a;
+    --lk-primary: #f59e0b;
+    --lk-primary-hover: #d97706;
+    --lk-primary-soft: rgba(245, 158, 11, 0.16);
+    --lk-primary-border: rgba(245, 158, 11, 0.45);
+    --lk-primary-text: #fcd34d;
+    --lk-info-soft: rgba(56, 189, 248, 0.16);
+    --lk-info-text: #7dd3fc;
+    --lk-success-soft: rgba(34, 197, 94, 0.16);
+    --lk-success-text: #86efac;
+    --lk-danger: #f87171;
+    --lk-danger-soft: rgba(239, 68, 68, 0.16);
+    --lk-danger-text: #fca5a5;
+    --lk-code-bg: #27272a;
+    --lk-footer-bg: #09090b;
+    --lk-toast-bg: #27272a;
+    --lk-toast-text: #fafafa;
+    --lk-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+/* 1. Brand logo & Tombol aksi rata kanan (ramah jempol) */
+.fi-logo {
+    border-radius: 0.5rem;
+}
 .fi-header-actions-ctn {
     display: flex;
     justify-content: flex-end;
@@ -9,14 +68,111 @@
     justify-content: flex-end;
 }
 
-/* 2. Scanner QR */
+/* 2. Tombol Toggle Light / Dark Mode 1-Klik */
+.lk-theme-toggle-wrap {
+    display: inline-flex;
+    align-items: center;
+}
+.lk-theme-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.45rem 0.6rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--lk-border-subtle);
+    background: var(--lk-surface-alt);
+    color: var(--lk-text-muted);
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.lk-theme-toggle:hover {
+    background: var(--lk-surface-hover);
+    color: var(--lk-text);
+    border-color: var(--lk-border);
+}
+.lk-theme-icon {
+    width: 1.15rem;
+    height: 1.15rem;
+    flex-shrink: 0;
+}
+.lk-auth-theme-bar {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 0.5rem;
+}
+
+/* 3. Utilitas Badge, Pill, Chip & Card (siap pakai Fase 2–4) */
+.lk-identity-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+    font-size: 0.85rem;
+    color: var(--lk-text);
+}
+.lk-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.2rem 0.65rem;
+    border-radius: 9999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    line-height: 1.25;
+}
+.lk-pill-amber {
+    background: var(--lk-primary-soft);
+    color: var(--lk-primary-text);
+    border: 1px solid var(--lk-primary-border);
+}
+.lk-pill-info {
+    background: var(--lk-info-soft);
+    color: var(--lk-info-text);
+}
+.lk-pill-success {
+    background: var(--lk-success-soft);
+    color: var(--lk-success-text);
+}
+.lk-pill-danger {
+    background: var(--lk-danger-soft);
+    color: var(--lk-danger-text);
+}
+.lk-chip-btn {
+    border-radius: 0.5rem;
+    border: 1px solid var(--lk-primary-border);
+    background: var(--lk-primary-soft);
+    color: var(--lk-primary-text);
+    padding: 0.45rem 0.75rem;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.15s ease;
+}
+.lk-chip-btn:hover {
+    opacity: 0.88;
+}
+.lk-code-box {
+    display: inline-block;
+    padding: 0.35rem 0.6rem;
+    border-radius: 0.4rem;
+    border: 1px solid var(--lk-border-subtle);
+    background: var(--lk-code-bg);
+    color: var(--lk-text);
+    word-break: break-all;
+}
+.lk-muted {
+    color: var(--lk-text-muted);
+}
+
+/* 4. Scanner QR */
 .lk-reader {
     min-height: 240px;
     aspect-ratio: 4 / 3;
     width: 100%;
     overflow: hidden;
     border-radius: 0.5rem;
-    border: 1px dashed #d1d5db;
+    border: 1px dashed var(--lk-border);
     background: #000;
 }
 .lk-reader video {
@@ -24,55 +180,174 @@
     height: 100%;
     object-fit: cover;
 }
-.lk-status { margin-top: 0.5rem; font-size: 0.875rem; color: #6b7280; }
-.lk-error { margin-top: 0.25rem; font-size: 0.875rem; color: #dc2626; }
-.lk-row { margin-top: 0.5rem; display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+.lk-status {
+    margin-top: 0.5rem;
+    font-size: 0.875rem;
+    color: var(--lk-text-muted);
+}
+.lk-error {
+    margin-top: 0.25rem;
+    font-size: 0.875rem;
+    color: var(--lk-danger);
+}
+.lk-row {
+    margin-top: 0.5rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+}
 .lk-select {
-    width: 100%; border: 1px solid #d1d5db; border-radius: 0.5rem;
-    padding: 0.5rem; font-size: 0.875rem; background: #fff; color: #111;
+    width: 100%;
+    border: 1px solid var(--lk-border);
+    border-radius: 0.5rem;
+    padding: 0.5rem;
+    font-size: 0.875rem;
+    background: var(--lk-surface);
+    color: var(--lk-text);
 }
 .lk-btn {
-    border: 1px solid #d1d5db; border-radius: 0.5rem; padding: 0.5rem 0.75rem;
-    font-size: 0.875rem; background: #fff; color: #111; cursor: pointer;
+    border: 1px solid var(--lk-border);
+    border-radius: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    background: var(--lk-surface);
+    color: var(--lk-text);
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
 }
-.lk-btn-primary { background: #f59e0b; border-color: #f59e0b; color: #fff; font-weight: 600; }
-.lk-hint { margin-top: 0.5rem; font-size: 0.75rem; color: #9ca3af; }
+.lk-btn:hover {
+    background: var(--lk-surface-hover);
+}
+.lk-btn.lk-btn-primary {
+    background: var(--lk-primary);
+    border-color: var(--lk-primary);
+    color: #ffffff;
+    font-weight: 600;
+}
+.lk-btn.lk-btn-primary:hover {
+    background: var(--lk-primary-hover);
+    border-color: var(--lk-primary-hover);
+}
+.lk-hint {
+    margin-top: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--lk-text-subtle);
+}
 
-/* 3. Halaman Notifikasi */
-.lk-wrap { max-width: 48rem; margin: 0 auto; display: flex; flex-direction: column; gap: 2rem; }
-.lk-grid { display: grid; gap: 1.5rem; }
+/* 5. Halaman Setting & Custom Forms */
+.lk-wrap {
+    max-width: 48rem;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+.lk-grid {
+    display: grid;
+    gap: 1.5rem;
+}
 @media (min-width: 768px) {
-    .lk-grid-2 { grid-template-columns: 1fr 1fr; }
+    .lk-grid-2 {
+        grid-template-columns: 1fr 1fr;
+    }
 }
-.lk-span { grid-column: 1 / -1; }
-.lk-field label { display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 0.375rem; }
-.lk-field .lk-opt { font-weight: 400; color: #9ca3af; }
+.lk-span {
+    grid-column: 1 / -1;
+}
+.lk-field label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--lk-text);
+    margin-bottom: 0.375rem;
+}
+.lk-field .lk-opt {
+    font-weight: 400;
+    color: var(--lk-text-subtle);
+}
 .lk-input {
-    width: 100%; border: 1px solid #d1d5db; border-radius: 0.5rem; background: #fff;
-    padding: 0.5rem 0.75rem; font-size: 0.875rem; color: #111;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    width: 100%;
+    border: 1px solid var(--lk-border);
+    border-radius: 0.5rem;
+    background: var(--lk-surface);
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    color: var(--lk-text);
+    box-shadow: var(--lk-shadow);
 }
-.lk-input:focus { border-color: #f59e0b; outline: none; box-shadow: 0 0 0 1px #f59e0b; }
-.lk-input::placeholder { color: #9ca3af; }
-.lk-check { display: flex; align-items: center; gap: 0.75rem; font-size: 0.875rem; cursor: pointer; }
-.lk-check input { width: 1rem; height: 1rem; accent-color: #f59e0b; }
-.lk-btnrow { margin-top: 1.5rem; display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; }
-.lk-note { font-size: 0.875rem; color: #6b7280; }
-.lk-tablewrap { overflow-x: auto; }
-.lk-table { width: 100%; font-size: 0.875rem; border-collapse: collapse; }
-.lk-table th { text-align: left; font-size: 0.75rem; text-transform: uppercase; color: #9ca3af; padding: 0.5rem 0.75rem; }
-.lk-table td { padding: 0.75rem; border-top: 1px solid #f3f4f6; }
-.lk-mono { font-family: ui-monospace, monospace; font-size: 0.75rem; }
-.lk-empty { padding: 1rem 0.75rem; color: #9ca3af; }
+.lk-input:focus {
+    border-color: var(--lk-primary);
+    outline: none;
+    box-shadow: 0 0 0 1px var(--lk-primary);
+}
+.lk-input::placeholder {
+    color: var(--lk-text-subtle);
+}
+.lk-check {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.875rem;
+    color: var(--lk-text);
+    cursor: pointer;
+}
+.lk-check input {
+    width: 1rem;
+    height: 1rem;
+    accent-color: var(--lk-primary);
+}
+.lk-btnrow {
+    margin-top: 1.5rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+}
+.lk-note {
+    font-size: 0.875rem;
+    color: var(--lk-text-muted);
+}
+.lk-tablewrap {
+    overflow-x: auto;
+}
+.lk-table {
+    width: 100%;
+    font-size: 0.875rem;
+    border-collapse: collapse;
+    color: var(--lk-text);
+}
+.lk-table th {
+    text-align: left;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    color: var(--lk-text-muted);
+    padding: 0.5rem 0.75rem;
+}
+.lk-table td {
+    padding: 0.75rem;
+    border-top: 1px solid var(--lk-border-subtle);
+}
+.lk-mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.75rem;
+}
+.lk-empty {
+    padding: 1rem 0.75rem;
+    color: var(--lk-text-muted);
+}
 
-/* Dark mode (Filament pakai class .dark di <html>) */
-.dark .lk-select, .dark .lk-input { background: #1f2937; border-color: #4b5563; color: #f9fafb; }
-.dark .lk-btn { background: #1f2937; border-color: #4b5563; color: #e5e7eb; }
-.dark .lk-reader { border-color: #4b5563; }
-.dark .lk-status, .dark .lk-note { color: #9ca3af; }
-.dark .lk-table td { border-color: #374151; }
+/* 6. Toast WebSocket */
+.lk-toast {
+    background: var(--lk-toast-bg);
+    color: var(--lk-toast-text);
+    border: 1px solid var(--lk-border);
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 13px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+}
 
-/* 4. Footer menempel ke bawah viewport */
+/* 7. Footer menempel ke bawah viewport */
 .fi-main-ctn {
     display: flex;
     flex-direction: column;
@@ -82,13 +357,8 @@
     margin-top: auto;
     text-align: center;
     font-size: 0.75rem;
-    color: #6b7280;
+    color: var(--lk-text-muted);
     padding: 1rem;
-    border-top: 1px solid #e5e7eb;
-    background: #fff;
-}
-.dark .lk-footer {
-    color: #9ca3af;
-    border-color: #1f2937;
-    background: #030712;
+    border-top: 1px solid var(--lk-border-subtle);
+    background: var(--lk-footer-bg);
 }

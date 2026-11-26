@@ -164,9 +164,9 @@ class LoanForm
                             $codeLabel = e(self::selfCode() ?: '-');
 
                             return new HtmlString(
-                                '<div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center;font-size:0.85rem;">'
-                                .'<span style="padding:0.2rem 0.6rem;border-radius:9999px;background:#fef3c7;color:#92400e;font-weight:600;">'.$typeLabel.'</span>'
-                                .'<span style="color:#6b7280;">ID: <strong>'.$codeLabel.'</strong></span>'
+                                '<div class="lk-identity-bar">'
+                                .'<span class="lk-pill lk-pill-amber">'.$typeLabel.'</span>'
+                                .'<span class="lk-muted">ID: <strong>'.$codeLabel.'</strong></span>'
                                 .'</div>'
                             );
                         }),
@@ -209,7 +209,7 @@ class LoanForm
                                     document.addEventListener(\'change\', save);
                                 }
                             ">
-                                <button x-show="show" type="button" class="rounded-lg border border-amber-400 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-700" @click="
+                                <button x-show="show" type="button" class="lk-chip-btn" @click="
                                     try {
                                         const d = JSON.parse(localStorage.getItem(\'latekaje_last_borrower\'));
                                         const root = document.getElementById(\'loan-nama-field\');

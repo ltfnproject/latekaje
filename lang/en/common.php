@@ -15,6 +15,10 @@ return [
     'status' => 'Status',
     'active' => 'Active',
     'all' => 'All',
+    'theme_light' => 'Light Mode',
+    'theme_dark' => 'Dark Mode',
+    'switch_light_mode' => 'Switch to light mode',
+    'switch_dark_mode' => 'Switch to dark mode',
 
     // Navigation
     'nav_dashboard' => 'Dashboard',
