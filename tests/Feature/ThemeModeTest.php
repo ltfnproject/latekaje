@@ -26,7 +26,8 @@ class ThemeModeTest extends TestCase
         // Login page includes quick theme toggle + v2 CSS tokens
         $loginRes = $this->get('/admin/login');
         $loginRes->assertOk();
-        $loginRes->assertSee('/css/latekaje.css?v=2', false);
+        $loginRes->assertSee('/css/latekaje.css?v=3', false);
+        $loginRes->assertSee('lk-auth-theme-floating', false);
         $loginRes->assertSee('lk-theme-toggle', false);
 
         // Authenticated topbar includes quick theme toggle

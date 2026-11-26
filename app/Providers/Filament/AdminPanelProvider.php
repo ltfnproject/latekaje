@@ -88,7 +88,7 @@ class AdminPanelProvider extends PanelProvider
 
                     return '<script>window.LATEKAJE_SCAN=' . $scan . ';</script>'
                         . <<<'HTML'
-                    <link rel="stylesheet" href="/css/latekaje.css?v=2" />
+                    <link rel="stylesheet" href="/css/latekaje.css?v=3" />
                     <script src="/js/vendor/html5-qrcode.min.js?v=2.3.8"></script>
                     <style>
                     #reader-loan-inline, #reader-table-return { background: #000; }
@@ -240,7 +240,7 @@ class AdminPanelProvider extends PanelProvider
             )
             ->renderHook(
                 PanelsRenderHook::AUTH_LOGIN_FORM_BEFORE,
-                static fn () => '<div class="lk-auth-theme-bar">'.view('filament.components.theme-toggle', ['showLabel' => true])->render().'</div>',
+                static fn () => '<div class="lk-auth-theme-floating">'.view('filament.components.theme-toggle')->render().'</div>',
             )
             ->renderHook(
                 PanelsRenderHook::BODY_END,
