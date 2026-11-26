@@ -120,7 +120,19 @@ class LoanForm
                                     return;
                                 }
 
-                                if ($item->status === 'dipinjam' || $item->activeLoan()->exists()) {
+                                if ($item->status === AssetItem::STATUS_INSTALLED) {
+                                    $fail(__('loans.val_installed'));
+
+                                    return;
+                                }
+
+                                if ($item->status === AssetItem::STATUS_RETIRED) {
+                                    $fail(__('loans.val_retired'));
+
+                                    return;
+                                }
+
+                                if ($item->status !== AssetItem::STATUS_AVAILABLE || $item->activeLoan()->exists()) {
                                     $fail(__('loans.val_borrowed'));
 
                                     return;

@@ -10,11 +10,20 @@ class EditAssetItem extends EditRecord
 {
     protected static string $resource = AssetItemResource::class;
 
+    protected function mutateFormDataBeforeSave(array $data): array
+    {
+        if (! auth()->user()?->canViewFinancials()) {
+            unset($data['purchase_price']);
+        }
+
+        return $data;
+    }
+
     protected function getHeaderActions(): array
     {
         return [
             DeleteAction::make()
-                    ->label(__('common.delete')),
+                ->label(__('common.delete')),
         ];
     }
 

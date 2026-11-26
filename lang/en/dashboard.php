@@ -28,14 +28,22 @@ return [
     'no_data' => 'No data yet',
 
     // InventoryOverview
-    'total_units' => 'Total Units',
-    'total_units_desc' => 'All registered units',
+    'total_units' => 'Total Active Units',
+    'total_units_desc' => 'All registered active units',
+    'total_units_installed_desc' => 'Includes :count permanently installed',
     'ready' => 'Ready to Use',
     'ready_desc' => 'Available + good condition',
     'borrowed' => 'Borrowed',
-    'borrowed_desc' => 'Currently borrowed by students',
+    'borrowed_desc' => 'Currently borrowed',
     'quarantine' => 'Quarantine',
     'quarantine_desc' => 'Damaged + total loss',
+
+    // LowStockConsumablesWidget
+    'low_stock_heading' => 'Low Stock Consumables Alert',
+    'col_consumable' => 'Consumable',
+    'col_remaining' => 'Remaining',
+    'col_min_stock' => 'Min. Stock',
+    'manage_consumables' => 'Manage Consumables',
 
     // LoanActivityChart
     'activity_heading' => 'Loan Activity (Last 6 Months)',

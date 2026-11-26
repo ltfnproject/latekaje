@@ -13,6 +13,61 @@
         }
     }" class="lk-wrap">
         <x-filament::section>
+            <x-slot name="heading">{{ __('settings.governance_heading') }}</x-slot>
+            <x-slot name="description">{{ __('settings.governance_desc') }}</x-slot>
+
+            <div class="lk-grid lk-grid-2">
+                <div class="lk-field">
+                    <label>{{ __('settings.delegation_label') }}</label>
+                    <p class="lk-note" style="margin-bottom: 0.75rem;">
+                        @if($delegationActive)
+                            <span class="lk-pill lk-pill-amber">{{ __('settings.status_on') }}</span>
+                            @if($delegationUntil)
+                                <span class="lk-muted"> {{ __('settings.delegation_until', ['time' => $delegationUntil->format('d M Y H:i')]) }}</span>
+                            @else
+                                <span class="lk-muted"> {{ __('settings.delegation_manual_hint') }}</span>
+                            @endif
+                        @else
+                            <span class="lk-pill lk-pill-info">{{ __('settings.status_off') }}</span>
+                            <span class="lk-muted"> {{ __('settings.delegation_locked_hint') }}</span>
+                        @endif
+                    </p>
+                    <div class="lk-btnrow" style="margin-top: 0.5rem;">
+                        @if(!$delegationActive)
+                        <select wire:model="delegationHours" class="lk-input" style="max-width: 11rem;">
+                            <option value="6">{{ __('settings.dur_6h') }}</option>
+                            <option value="24">{{ __('settings.dur_24h') }}</option>
+                            <option value="72">{{ __('settings.dur_72h') }}</option>
+                            <option value="0">{{ __('settings.dur_manual') }}</option>
+                        </select>
+                        @endif
+                        <x-filament::button wire:click="toggleToolmanDelegation" :color="$delegationActive ? 'danger' : 'warning'" icon="heroicon-o-user-plus">
+                            {{ $delegationActive ? __('settings.delegation_disable') : __('settings.delegation_enable') }}
+                        </x-filament::button>
+                    </div>
+                </div>
+
+                <div class="lk-field">
+                    <label>{{ __('settings.strict_mode_label') }}</label>
+                    <p class="lk-note" style="margin-bottom: 0.75rem;">
+                        @if($procurementStrict)
+                            <span class="lk-pill lk-pill-success">{{ __('settings.status_on') }}</span>
+                            <span class="lk-muted"> {{ __('settings.strict_mode_on_body') }}</span>
+                        @else
+                            <span class="lk-pill lk-pill-info">{{ __('settings.status_off') }}</span>
+                            <span class="lk-muted"> {{ __('settings.strict_mode_off_body') }}</span>
+                        @endif
+                    </p>
+                    <div class="lk-btnrow" style="margin-top: 0.5rem;">
+                        <x-filament::button wire:click="toggleProcurementStrictMode" :color="$procurementStrict ? 'gray' : 'success'" icon="heroicon-o-shield-check">
+                            {{ $procurementStrict ? __('settings.strict_mode_disable') : __('settings.strict_mode_enable') }}
+                        </x-filament::button>
+                    </div>
+                </div>
+            </div>
+        </x-filament::section>
+
+        <x-filament::section>
             <x-slot name="heading">{{ __("settings.app_heading") }}</x-slot>
             <x-slot name="description">Status: {{ $maintenance ? __('settings.status_maintenance') : __('settings.status_live') }}.</x-slot>
 

@@ -33,6 +33,13 @@ return [
     'nav_about' => 'Tentang Aplikasi',
     'nav_location_data' => 'Data per Lokasi',
     'nav_activity_logs' => 'Log Aktivitas',
+    'nav_operational_logs' => 'Log Operasional',
+    'nav_my_activity_logs' => 'Riwayat Aktivitas Saya',
+    'nav_categories' => 'Kategori Aset',
+    'nav_funding_sources' => 'Sumber Anggaran',
+    'nav_procurements' => 'Barang Masuk',
+    'nav_bulk_stocks' => 'Wadah Pinjam Massal',
+    'nav_consumables' => 'Bahan Habis Pakai',
     'activity_log_label' => 'Log Aktivitas',
     'log_time' => 'Waktu',
     'log_actor' => 'Pelaku',
@@ -48,7 +55,7 @@ return [
 
     // About page
     'about_version' => 'Versi :version',
-    'about_body' => 'Aplikasi inventaris dan peminjaman alat lab Teknik Jaringan Komputer dan Telekomunikasi (TJKT). Kelola stok alat, pantau kondisi dan lokasi, serta catat peminjaman dan pengembalian secara cepat lewat scan QR.',
+    'about_body' => 'Aplikasi inventaris, barang masuk, stok bahan habis pakai, dan peminjaman alat jurusan Teknik Jaringan Komputer dan Telekomunikasi (TJKT) SMK Walisongo Pecangaan.',
 
     // Loan abilities (owned by the Loans domain elsewhere; labels live here
     // because Acl.php belongs to this workstream)

@@ -33,6 +33,13 @@ return [
     'nav_about' => 'About App',
     'nav_location_data' => 'Data per Location',
     'nav_activity_logs' => 'Activity Logs',
+    'nav_operational_logs' => 'Operational Logs',
+    'nav_my_activity_logs' => 'My Activity History',
+    'nav_categories' => 'Asset Categories',
+    'nav_funding_sources' => 'Funding Sources',
+    'nav_procurements' => 'Incoming Stock',
+    'nav_bulk_stocks' => 'Bulk Loan Containers',
+    'nav_consumables' => 'Consumables',
     'activity_log_label' => 'Activity Log',
     'log_time' => 'Time',
     'log_actor' => 'Actor',
@@ -48,7 +55,7 @@ return [
 
     // About page
     'about_version' => 'Version :version',
-    'about_body' => 'Inventory and lab equipment loan application for Computer Network and Telecommunication Engineering (TJKT). Manage tool stock, monitor condition and location, and record loans and returns quickly via QR scan.',
+    'about_body' => 'Inventory, incoming stock, consumables, and equipment loan management for Computer Network and Telecommunication Engineering (TJKT) at SMK Walisongo Pecangaan.',
 
     // Loan abilities (owned by the Loans domain elsewhere; labels live here
     // because Acl.php belongs to this workstream)

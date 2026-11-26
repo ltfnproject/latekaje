@@ -28,14 +28,22 @@ return [
     'no_data' => 'Belum ada data',
 
     // InventoryOverview
-    'total_units' => 'Total Unit',
-    'total_units_desc' => 'Seluruh unit terdaftar',
+    'total_units' => 'Total Unit Aktif',
+    'total_units_desc' => 'Seluruh unit terdaftar (non-afkir)',
+    'total_units_installed_desc' => 'Termasuk :count unit terpasang tetap',
     'ready' => 'Siap Pakai',
     'ready_desc' => 'Tersedia + kondisi baik',
     'borrowed' => 'Dipinjam',
-    'borrowed_desc' => 'Sedang dipinjam siswa',
+    'borrowed_desc' => 'Sedang dipinjam anggota',
     'quarantine' => 'Karantina',
     'quarantine_desc' => 'Rusak + rusak total',
+
+    // LowStockConsumablesWidget
+    'low_stock_heading' => 'Peringatan Bahan Habis Pakai Menipis',
+    'col_consumable' => 'Nama Bahan',
+    'col_remaining' => 'Sisa Stok',
+    'col_min_stock' => 'Batas Min.',
+    'manage_consumables' => 'Kelola Bahan Habis Pakai',
 
     // LoanActivityChart
     'activity_heading' => 'Aktivitas Peminjaman (6 Bulan Terakhir)',

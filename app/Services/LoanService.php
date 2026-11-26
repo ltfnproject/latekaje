@@ -29,7 +29,19 @@ class LoanService
             /** @var AssetItem $item */
             $item = AssetItem::lockForUpdate()->findOrFail($itemId);
 
-            if ($item->status === 'dipinjam' || $item->activeLoan()->exists()) {
+            if ($item->status === AssetItem::STATUS_INSTALLED) {
+                throw ValidationException::withMessages([
+                    'asset_item_id' => __('loans.val_installed'),
+                ]);
+            }
+
+            if ($item->status === AssetItem::STATUS_RETIRED) {
+                throw ValidationException::withMessages([
+                    'asset_item_id' => __('loans.val_retired'),
+                ]);
+            }
+
+            if ($item->status !== AssetItem::STATUS_AVAILABLE || $item->activeLoan()->exists()) {
                 throw ValidationException::withMessages([
                     'asset_item_id' => __('loans.val_borrowed'),
                 ]);

@@ -14,18 +14,24 @@ class AssetItemService
 {
     /**
      * Buat N unit sekaligus untuk satu aset.
-     * $serials: daftar SN manual (urutan = unit ke-1,2,...). Unit tanpa SN digenerate otomatis.
+     * - $serials: override QR/kode manual bila diisi di form lama.
+     * - $factorySerials: SN pabrik asli (disimpan di `serial_number_pabrik` sementara QR tetap kode pendek).
      */
     public static function bulkCreate(
         Asset $asset,
         int $qty,
         int $locationId,
         string $kondisi = 'baik',
-        string $status = 'tersedia',
+        string $status = AssetItem::STATUS_AVAILABLE,
         array $serials = [],
+        ?string $storageSpot = null,
+        ?int $procurementId = null,
+        ?int $purchasePrice = null,
+        array $factorySerials = [],
     ): Collection {
         $qty = max(1, $qty);
         $serials = array_values(array_filter(array_map('trim', $serials)));
+        $factorySerials = array_values(array_filter(array_map('trim', $factorySerials)));
 
         if (count($serials) > $qty) {
             throw ValidationException::withMessages([
@@ -33,12 +39,43 @@ class AssetItemService
             ]);
         }
 
-        return DB::transaction(function () use ($asset, $qty, $locationId, $kondisi, $status, $serials) {
+        if (count($factorySerials) > $qty) {
+            throw ValidationException::withMessages([
+                'serial_numbers_text' => __('units.sn_manual_too_many', ['count' => count($factorySerials), 'qty' => $qty]),
+            ]);
+        }
+
+        $asset->loadMissing('category');
+
+        return DB::transaction(function () use (
+            $asset,
+            $qty,
+            $locationId,
+            $kondisi,
+            $status,
+            $serials,
+            $storageSpot,
+            $procurementId,
+            $purchasePrice,
+            $factorySerials
+        ) {
             $units = collect();
 
             for ($i = 0; $i < $qty; $i++) {
-                $manual = $serials[$i] ?? null;
-                $units->push(self::createOne($asset->getKey(), $locationId, $kondisi, $status, $manual));
+                $manualQr = $serials[$i] ?? null;
+                $factorySn = $factorySerials[$i] ?? null;
+
+                $units->push(self::createOne(
+                    $asset,
+                    $locationId,
+                    $kondisi,
+                    $status,
+                    $manualQr,
+                    $storageSpot,
+                    $procurementId,
+                    $purchasePrice,
+                    $factorySn,
+                ));
             }
 
             return $units;
@@ -46,33 +83,44 @@ class AssetItemService
     }
 
     private static function createOne(
-        int $assetId,
+        Asset $asset,
         int $locationId,
         string $kondisi,
         string $status,
-        ?string $manualSerial,
+        ?string $manualQr,
+        ?string $storageSpot,
+        ?int $procurementId,
+        ?int $purchasePrice,
+        ?string $factorySn,
     ): AssetItem {
         $tries = 0;
 
         while (true) {
-            $code = ($manualSerial && $tries === 0) ? $manualSerial : AssetItemCode::next();
+            $code = ($manualQr && $tries === 0)
+                ? $manualQr
+                : AssetCodeGenerator::nextUnitQr($asset);
 
             try {
                 return AssetItem::create([
-                    'asset_id' => $assetId,
+                    'asset_id' => $asset->getKey(),
                     'nomor_seri_atau_qr' => $code,
+                    'serial_number_pabrik' => filled($factorySn) ? $factorySn : null,
                     'kondisi' => $kondisi,
                     'location_id' => $locationId,
+                    'storage_spot' => filled($storageSpot) ? trim($storageSpot) : null,
+                    'procurement_id' => $procurementId,
+                    'purchase_price' => $purchasePrice,
                     'status' => $status,
+                    'installed_at' => $status === AssetItem::STATUS_INSTALLED ? now() : null,
                 ]);
             } catch (UniqueConstraintViolationException | QueryException $e) {
                 if (! self::isDuplicate($e)) {
                     throw $e;
                 }
 
-                if ($manualSerial && $tries === 0) {
+                if ($manualQr && $tries === 0) {
                     throw ValidationException::withMessages([
-                        'sn_manual' => __('units.sn_duplicate', ['serial' => $manualSerial]),
+                        'sn_manual' => __('units.sn_duplicate', ['serial' => $manualQr]),
                     ]);
                 }
 

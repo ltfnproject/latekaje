@@ -5,6 +5,7 @@ namespace App\Filament\Pages;
 use App\Models\RecapLog;
 use App\Models\Setting;
 use App\Services\ActivityLogger;
+use App\Services\GovernanceService;
 use App\Services\GowaClient;
 use App\Services\RecapService;
 use App\Services\WebhookClient;
@@ -76,6 +77,40 @@ class NotificationSettings extends Page
     public ?string $newTokenPlain = null;
 
     public ?string $maintenanceBypassUrl = null;
+
+    public int $delegationHours = 24;
+
+    public function toggleToolmanDelegation(): void
+    {
+        abort_unless(self::canAccess(), 403);
+
+        $enable = ! GovernanceService::isToolmanDelegationActive();
+        $hours = $enable && $this->delegationHours > 0 ? $this->delegationHours : null;
+
+        GovernanceService::setToolmanDelegation($enable, $hours);
+
+        Notification::make()
+            ->title($enable ? __('settings.delegation_on_title') : __('settings.delegation_off_title'))
+            ->body($enable
+                ? ($hours ? __('settings.delegation_on_timed', ['hours' => $hours]) : __('settings.delegation_on_manual'))
+                : __('settings.delegation_off_body'))
+            ->{ $enable ? 'warning' : 'success' }()
+            ->send();
+    }
+
+    public function toggleProcurementStrictMode(): void
+    {
+        abort_unless(self::canAccess(), 403);
+
+        $enable = ! GovernanceService::isProcurementStrictMode();
+        GovernanceService::setProcurementStrictMode($enable);
+
+        Notification::make()
+            ->title($enable ? __('settings.strict_mode_on_title') : __('settings.strict_mode_off_title'))
+            ->body($enable ? __('settings.strict_mode_on_body') : __('settings.strict_mode_off_body'))
+            ->success()
+            ->send();
+    }
 
     public static function canAccess(): bool
     {
@@ -318,6 +353,9 @@ class NotificationSettings extends Page
             'scheduleTime' => Setting::get('recap_time', '16:00'),
             'maintenance' => app()->isDownForMaintenance(),
             'tokens' => auth()->user()?->isSuperadmin() ? auth()->user()->tokens()->latest()->get() : collect(),
+            'delegationActive' => GovernanceService::isToolmanDelegationActive(),
+            'delegationUntil' => GovernanceService::toolmanDelegationUntil(),
+            'procurementStrict' => GovernanceService::isProcurementStrictMode(),
         ];
     }
 }

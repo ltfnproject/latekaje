@@ -67,6 +67,8 @@ return [
     'qr_code_placeholder' => 'Scan result appears here, or type manually e.g.: LTKJ-0001',
     'val_code_unknown' => 'Tool code is not registered.',
     'val_borrowed' => 'Tool is currently borrowed.',
+    'val_installed' => 'Tool is permanently installed (in room/parent device) and cannot be borrowed.',
+    'val_retired' => 'Tool is marked as retired and cannot be borrowed.',
     'val_damaged' => 'Tool is damaged, not eligible for loan.',
     'step2_title' => 'Step 2 — Who Is Borrowing',
     'step2_desc' => 'Select a member from the master list or enter manually (staff mode).',

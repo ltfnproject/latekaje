@@ -76,13 +76,13 @@ class SecurityHardeningTest extends TestCase
         );
 
         try {
-            // Borrower ditolak pada endpoint sensitif
+            // Borrower ditolak pada endpoint sensitif (activity-logs kini role-scoped: hanya lihat log pinjaman milik sendiri)
             $this->actingAs($borrower);
             $this->get('/print-qr?ids=all')->assertForbidden();
             $this->get('/admin/data-per-lokasi')->assertForbidden();
             $this->get('/admin/setting')->assertForbidden();
             $this->get('/admin/user-resource/users')->assertForbidden();
-            $this->get('/admin/activity-logs')->assertForbidden();
+            $this->get('/admin/activity-logs')->assertOk();
 
             foreach ([
                 ActiveLoansTable::class,
@@ -96,13 +96,13 @@ class SecurityHardeningTest extends TestCase
                 $this->assertFalse($widgetClass::canView(), "{$widgetClass} tidak boleh terlihat oleh borrower");
             }
 
-            // Toolman boleh cetak QR & lihat lokasi, tapi tidak boleh buka setting & activity logs
+            // Toolman boleh cetak QR, lihat lokasi, & lihat log operasional terbatas, tapi tidak boleh buka setting
             $this->flushSession();
             $this->actingAs($toolman);
             $this->get('/print-qr?ids=all')->assertOk();
             $this->get('/admin/data-per-lokasi')->assertOk();
             $this->get('/admin/setting')->assertForbidden();
-            $this->get('/admin/activity-logs')->assertForbidden();
+            $this->get('/admin/activity-logs')->assertOk();
             $this->assertTrue(InventoryOverview::canView());
 
             // KKK (admin) boleh buka activity logs & setting & print QR
@@ -281,7 +281,9 @@ class SecurityHardeningTest extends TestCase
 
             $this->actingAs($assistant);
             $this->get('/admin/setting')->assertForbidden();
-            $this->get('/admin/activity-logs')->assertForbidden();
+            // Admin TJKT (Prakerin) boleh buka log operasional terbatas, namun tidak boleh melihat log admin (gov.check)
+            $this->get('/admin/activity-logs')->assertOk();
+            $this->assertFalse(Gate::forUser($assistant)->allows('view', $log));
 
             // Audit log bersifat append-only (immutable) bahkan untuk Superadmin
             $this->assertNotNull($log);

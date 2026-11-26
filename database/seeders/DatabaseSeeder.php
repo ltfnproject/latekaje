@@ -18,12 +18,12 @@ class DatabaseSeeder extends Seeder
     {
         $gudang = Location::firstOrCreate(
             ['key' => 'gudang'],
-            ['label' => 'Gudang (Penyimpanan)']
+            ['label' => 'Gudang TJKT']
         );
 
         Location::firstOrCreate(
             ['key' => 'ruang_kantor'],
-            ['label' => 'Ruang Kantor']
+            ['label' => 'Kantor TJKT']
         );
 
         $labTjkt = Location::firstOrCreate(
@@ -39,6 +39,11 @@ class DatabaseSeeder extends Seeder
         Location::firstOrCreate(
             ['key' => 'lab_fo'],
             ['label' => 'Lab FO']
+        );
+
+        Location::firstOrCreate(
+            ['key' => 'server_room'],
+            ['label' => 'Server Room']
         );
 
         $superadminPassword = env('SUPERADMIN_PASSWORD');

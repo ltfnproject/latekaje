@@ -67,6 +67,8 @@ return [
     'qr_code_placeholder' => 'Hasil scan muncul di sini, atau ketik manual cth: LTKJ-0001',
     'val_code_unknown' => 'Kode alat tidak terdaftar.',
     'val_borrowed' => 'Alat sedang dipinjam.',
+    'val_installed' => 'Alat berstatus terpasang tetap (di ruangan/perangkat induk) dan tidak dapat dipinjam.',
+    'val_retired' => 'Alat sudah berstatus afkir dan tidak dapat dipinjam.',
     'val_damaged' => 'Alat kondisi rusak, tidak layak pinjam.',
     'step2_title' => 'Langkah 2 — Siapa yang Meminjam',
     'step2_desc' => 'Pilih anggota dari daftar master atau isi manual untuk petugas.',

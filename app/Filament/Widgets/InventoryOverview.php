@@ -21,24 +21,31 @@ class InventoryOverview extends StatsOverviewWidget
 
     protected function getStats(): array
     {
-        $total = AssetItem::query()->count();
+        $total = AssetItem::query()->where('status', '!=', AssetItem::STATUS_RETIRED)->count();
+
+        $terpasang = AssetItem::query()
+            ->where('status', AssetItem::STATUS_INSTALLED)
+            ->count();
 
         $siapPakai = AssetItem::query()
-            ->where('status', 'tersedia')
+            ->where('status', AssetItem::STATUS_AVAILABLE)
             ->where('kondisi', 'baik')
             ->count();
 
         $dipinjam = AssetItem::query()
-            ->where('status', 'dipinjam')
+            ->where('status', AssetItem::STATUS_BORROWED)
             ->count();
 
         $karantina = AssetItem::query()
+            ->where('status', '!=', AssetItem::STATUS_RETIRED)
             ->whereIn('kondisi', ['rusak', 'rusak_total'])
             ->count();
 
         return [
             Stat::make(__('dashboard.total_units'), number_format($total))
-                ->description(__('dashboard.total_units_desc'))
+                ->description($terpasang > 0
+                    ? __('dashboard.total_units_installed_desc', ['count' => number_format($terpasang)])
+                    : __('dashboard.total_units_desc'))
                 ->icon('heroicon-o-archive-box'),
 
             Stat::make(__('dashboard.ready'), number_format($siapPakai))
