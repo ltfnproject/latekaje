@@ -31,7 +31,6 @@ class ProcurementPolicy
     public function delete(User $user, Procurement $procurement): bool
     {
         return $user->is_active
-            && in_array($user->role, ['superadmin', 'admin'], true)
-            && ! $procurement->isGenerated();
+            && in_array($user->role, ['superadmin', 'admin'], true);
     }
 }

@@ -13,6 +13,7 @@ class ConsumableTransaction extends Model
 
     protected $fillable = [
         'consumable_id',
+        'procurement_id',
         'type',
         'quantity',
         'stock_before',
@@ -41,6 +42,11 @@ class ConsumableTransaction extends Model
     public function consumable(): BelongsTo
     {
         return $this->belongsTo(Consumable::class);
+    }
+
+    public function procurement(): BelongsTo
+    {
+        return $this->belongsTo(Procurement::class);
     }
 
     public function fundingSource(): BelongsTo

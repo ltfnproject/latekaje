@@ -5,9 +5,13 @@ namespace App\Filament\Resources\Procurements;
 use App\Filament\Resources\Procurements\Pages\CreateProcurement;
 use App\Filament\Resources\Procurements\Pages\EditProcurement;
 use App\Filament\Resources\Procurements\Pages\ListProcurements;
+use App\Filament\Resources\Procurements\Pages\ViewProcurement;
+use App\Filament\Resources\Procurements\RelationManagers\AssetItemsRelationManager;
+use App\Filament\Resources\Procurements\RelationManagers\ConsumableTransactionsRelationManager;
 use App\Models\Asset;
 use App\Models\AssetCategory;
 use App\Models\AssetItem;
+use App\Models\Consumable;
 use App\Models\FundingSource;
 use App\Models\Location;
 use App\Models\Procurement;
@@ -16,8 +20,8 @@ use App\Services\GovernanceService;
 use App\Services\ProcurementService;
 use BackedEnum;
 use Filament\Actions\Action;
-use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
+use Filament\Actions\ViewAction;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Placeholder;
@@ -176,20 +180,20 @@ class ProcurementResource extends Resource
                         ->columnSpanFull(),
                 ]),
 
-            Section::make('Daftar Rincian Barang (Input Massal dalam 1 Batch)')
-                ->description('Masukkan semua alat dari foto di atas sekaligus. Setelah disimpan, sistem otomatis membuatkan kode QR unit atau menambah stok wadah massal.')
+            Section::make('Daftar Aset (Satuan & Wadah Pinjam Massal)')
+                ->description('Masukkan alat inventaris (satuan maupun massal) dari batch ini. Kosongkan jika batch hanya berisi Bahan Habis Pakai.')
                 ->schema([
                     Repeater::make('items')
-                        ->label('Daftar Barang')
+                        ->label('Rincian Aset')
                         ->relationship()
                         ->defaultItems(1)
-                        ->minItems(1)
-                        ->addActionLabel('+ Tambah Baris Barang')
+                        ->minItems(0)
+                        ->addActionLabel('+ Tambah Baris Aset')
                         ->reorderable(false)
                         ->columns(2)
                         ->disabled(fn (?Procurement $record): bool => (bool) $record?->isGenerated())
                         ->helperText(fn (?Procurement $record): ?string => $record?->isGenerated()
-                            ? 'Unit/stok untuk batch ini sudah digenerate. Edit masing-masing unit di menu Data Unit/QR atau Wadah Pinjam Massal.'
+                            ? 'Inventaris untuk batch ini sudah digenerate. Lihat detail unit pada tab di bawah, atau klik "Batalkan Generate (Edit Ulang)" di atas jika ingin mengubah rincian.'
                             : null)
                         ->schema([
                             Select::make('asset_id')
@@ -322,6 +326,92 @@ class ProcurementResource extends Resource
                                 ->columnSpanFull(),
                         ]),
                 ]),
+
+            Section::make('Daftar Bahan Habis Pakai (Opsional dalam Batch yang Sama)')
+                ->description('Tambahkan restock Kabel UTP/FO roll, Konektor RJ45/SC, Timah, Tinta, dll. bila ikut datang dalam batch ini.')
+                ->collapsed(fn (?Procurement $record): bool => $record !== null && ! $record->consumableItems()->exists())
+                ->schema([
+                    Repeater::make('consumableItems')
+                        ->label('Rincian Bahan Habis Pakai')
+                        ->relationship()
+                        ->defaultItems(0)
+                        ->minItems(0)
+                        ->addActionLabel('+ Tambah Baris Bahan Habis Pakai')
+                        ->reorderable(false)
+                        ->columns(2)
+                        ->disabled(fn (?Procurement $record): bool => (bool) $record?->isGenerated())
+                        ->schema([
+                            Select::make('consumable_id')
+                                ->label('Bahan Habis Pakai')
+                                ->relationship('consumable', 'name', fn (Builder $query) => $query->where('is_active', true)->orderBy('name'))
+                                ->getOptionLabelFromRecordUsing(fn (Consumable $record): string => "{$record->name} ({$record->unit})".($record->specification ? " — {$record->specification}" : ''))
+                                ->searchable(['name', 'specification'])
+                                ->preload()
+                                ->required()
+                                ->columnSpanFull()
+                                ->createOptionForm([
+                                    TextInput::make('name')
+                                        ->label('Nama Bahan')
+                                        ->required()
+                                        ->maxLength(150),
+                                    Select::make('category_label')
+                                        ->label('Kategori BHP')
+                                        ->options(Consumable::categoryOptions())
+                                        ->default('Umum')
+                                        ->required(),
+                                    TextInput::make('specification')
+                                        ->label('Spesifikasi / Merk (Opsional)')
+                                        ->maxLength(255),
+                                    Select::make('unit')
+                                        ->label('Satuan')
+                                        ->options(Consumable::unitOptions())
+                                        ->default('pcs')
+                                        ->required(),
+                                    TextInput::make('min_stock')
+                                        ->label('Batas Minimum Peringatan')
+                                        ->numeric()
+                                        ->default(10)
+                                        ->minValue(0)
+                                        ->required(),
+                                    Select::make('location_id')
+                                        ->label('Lokasi Simpan')
+                                        ->options(fn () => Location::orderBy('label')->pluck('label', 'id'))
+                                        ->default(fn () => Location::where('key', 'gudang')->value('id')),
+                                ])
+                                ->createOptionUsing(function (array $data): int {
+                                    $consumable = Consumable::create(array_merge($data, [
+                                        'stock' => 0,
+                                        'is_active' => true,
+                                    ]));
+
+                                    return (int) $consumable->getKey();
+                                }),
+
+                            TextInput::make('quantity')
+                                ->label('Jumlah Masuk')
+                                ->numeric()
+                                ->default(1)
+                                ->minValue(1)
+                                ->required(),
+
+                            TextInput::make('unit_price')
+                                ->label('Harga per Satuan (Rp)')
+                                ->numeric()
+                                ->prefix('Rp')
+                                ->minValue(0)
+                                ->placeholder('Opsional untuk barang lama')
+                                ->visible(fn (): bool => (bool) auth()->user()?->canViewFinancials())
+                                ->dehydrated(fn (): bool => (bool) auth()->user()?->canViewFinancials())
+                                ->required(fn (Get $get): bool => (bool) auth()->user()?->canViewFinancials()
+                                    && GovernanceService::isProcurementStrictMode()
+                                    && $get('../../entry_type') === Procurement::TYPE_NEW),
+
+                            TextInput::make('notes')
+                                ->label('Catatan Item (Opsional)')
+                                ->maxLength(255)
+                                ->columnSpanFull(),
+                        ]),
+                ]),
         ]);
     }
 
@@ -330,12 +420,14 @@ class ProcurementResource extends Resource
         return $table
             ->modifyQueryUsing(fn (Builder $query) => $query
                 ->with(['fundingSource', 'creator'])
-                ->withSum('items as total_qty', 'quantity')
+                ->withSum('items as asset_qty', 'quantity')
+                ->withSum('consumableItems as consumable_qty', 'quantity')
                 ->withCount([
                     'assetItems',
                     'assetItems as unprinted_units_count' => fn (Builder $q) => $q->whereNull('qr_printed_at'),
                 ]))
             ->defaultSort('id', 'desc')
+            ->recordUrl(fn (Procurement $record): string => self::getUrl('view', ['record' => $record]))
             ->columns([
                 TextColumn::make('batch_code')
                     ->label('Kode Batch')
@@ -362,10 +454,23 @@ class ProcurementResource extends Resource
                     ->sortable(),
 
                 TextColumn::make('total_qty')
-                    ->label('Total Qty')
+                    ->label('Isi Batch')
                     ->badge()
                     ->color('info')
-                    ->getStateUsing(fn (Procurement $record): int => (int) ($record->total_qty ?? 0)),
+                    ->getStateUsing(fn (Procurement $record): string => number_format((int) ($record->asset_qty ?? 0) + (int) ($record->consumable_qty ?? 0)).' item')
+                    ->description(function (Procurement $record): ?string {
+                        $parts = [];
+                        $assetQty = (int) ($record->asset_qty ?? 0);
+                        $bhpQty = (int) ($record->consumable_qty ?? 0);
+                        if ($assetQty > 0) {
+                            $parts[] = "Aset: {$assetQty}";
+                        }
+                        if ($bhpQty > 0) {
+                            $parts[] = "BHP: {$bhpQty}";
+                        }
+
+                        return $parts !== [] ? implode(' · ', $parts) : null;
+                    }),
 
                 TextColumn::make('qr_print_status')
                     ->label('Status QR')
@@ -419,6 +524,8 @@ class ProcurementResource extends Resource
                     ->preload(),
             ])
             ->recordActions([
+                ViewAction::make()->label('Detail'),
+
                 Action::make('printBatchQr')
                     ->label(fn (Procurement $record): string => (int) ($record->unprinted_units_count ?? 0) > 0
                         ? "Cetak QR ({$record->unprinted_units_count})"
@@ -452,7 +559,7 @@ class ProcurementResource extends Resource
                             $result = ProcurementService::generateInventory($record);
                             Notification::make()
                                 ->title('Inventaris berhasil digenerate')
-                                ->body("Dibuat {$result['units_created']} unit satuan & +{$result['bulk_added']} stok pinjam massal.")
+                                ->body("Dibuat {$result['units_created']} unit satuan, +{$result['bulk_added']} stok massal, & +{$result['consumables_added']} stok BHP.")
                                 ->success()
                                 ->send();
                         } catch (ValidationException $e) {
@@ -465,8 +572,46 @@ class ProcurementResource extends Resource
                     }),
 
                 EditAction::make()->label(__('common.edit')),
-                DeleteAction::make()->label(__('common.delete')),
+
+                Action::make('cancelAndDelete')
+                    ->label('Batalkan')
+                    ->icon('heroicon-o-trash')
+                    ->color('danger')
+                    ->visible(fn (Procurement $record): bool => Gate::allows('delete', $record))
+                    ->requiresConfirmation()
+                    ->modalHeading(fn (Procurement $record): string => "Batalkan & Hapus Batch {$record->batch_code}?")
+                    ->modalDescription(function (Procurement $record): string {
+                        $units = (int) ($record->asset_items_count ?? $record->assetItems()->count());
+                        $bhp = (int) ($record->consumable_qty ?? 0);
+
+                        return "Membatalkan batch ini akan otomatis menghapus {$units} unit fisik satuan, mengurangi tambahan stok wadah massal, serta mengembalikan {$bhp} stok Bahan Habis Pakai dari batch ini. Lanjutkan?";
+                    })
+                    ->action(function (Procurement $record): void {
+                        try {
+                            $res = ProcurementService::cancelAndDelete($record);
+                            Notification::make()
+                                ->title('Batch barang masuk dibatalkan & dihapus')
+                                ->body("{$res['units_deleted']} unit satuan dihapus, {$res['bulk_reverted']} stok massal & {$res['consumables_reverted']} stok BHP dikembalikan.")
+                                ->success()
+                                ->send();
+                        } catch (ValidationException $e) {
+                            Notification::make()
+                                ->title('Tidak dapat membatalkan batch')
+                                ->body(collect($e->errors())->flatten()->first() ?? $e->getMessage())
+                                ->danger()
+                                ->persistent()
+                                ->send();
+                        }
+                    }),
             ]);
+    }
+
+    public static function getRelations(): array
+    {
+        return [
+            AssetItemsRelationManager::class,
+            ConsumableTransactionsRelationManager::class,
+        ];
     }
 
     public static function getPages(): array
@@ -474,6 +619,7 @@ class ProcurementResource extends Resource
         return [
             'index' => ListProcurements::route('/'),
             'create' => CreateProcurement::route('/create'),
+            'view' => ViewProcurement::route('/{record}'),
             'edit' => EditProcurement::route('/{record}/edit'),
         ];
     }

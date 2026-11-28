@@ -72,6 +72,7 @@ class ConsumableService
 
             $tx = ConsumableTransaction::create([
                 'consumable_id' => $locked->id,
+                'procurement_id' => filled($meta['procurement_id'] ?? null) ? (int) $meta['procurement_id'] : null,
                 'type' => $type,
                 'quantity' => $quantity,
                 'stock_before' => $before,

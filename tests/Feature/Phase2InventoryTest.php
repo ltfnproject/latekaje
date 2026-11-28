@@ -18,6 +18,7 @@ use App\Models\Loan;
 use App\Models\Location;
 use App\Models\Member;
 use App\Models\Procurement;
+use App\Models\ProcurementConsumable;
 use App\Models\ProcurementItem;
 use App\Models\Setting;
 use App\Models\User;
@@ -839,6 +840,211 @@ class Phase2InventoryTest extends TestCase
             $bulkAsset->delete();
             $asset->delete();
             $kkk->delete();
+            $borrower->delete();
+        }
+    }
+
+    public function test_procurement_view_details_consumables_and_atomic_cancel_rollback(): void
+    {
+        $kkk = User::updateOrCreate(
+            ['email' => 'p2-cancel-kkk@latekaje.test'],
+            ['name' => 'KKK Batal Batch', 'password' => 'secret1234', 'role' => 'admin', 'is_active' => true, 'must_change_password' => false],
+        );
+        $toolman = User::updateOrCreate(
+            ['email' => 'p2-cancel-tm@latekaje.test'],
+            ['name' => 'Toolman Batal Batch', 'password' => 'secret1234', 'role' => 'staff', 'is_active' => true, 'must_change_password' => false],
+        );
+        $borrower = User::updateOrCreate(
+            ['email' => 'p2-cancel-usr@latekaje.test'],
+            ['name' => 'Siswa Batal Batch', 'code' => 'P2CNCL01', 'password' => 'secret1234', 'role' => 'users', 'is_active' => true, 'must_change_password' => false],
+        );
+
+        $gudang = Location::where('key', 'gudang')->firstOrFail();
+        $netCat = AssetCategory::where('code', 'NET')->firstOrFail();
+        $kblCat = AssetCategory::where('code', 'KBL')->firstOrFail();
+
+        $routerAsset = Asset::create([
+            'category_id' => $netCat->id,
+            'nama_alat' => 'Router Uji Batal Batch',
+            'spesifikasi' => 'RB750Gr3',
+            'kegunaan' => 'Praktik Siswa',
+            'tracking_mode' => Asset::MODE_SERIALIZED,
+        ]);
+        $cableAsset = Asset::create([
+            'category_id' => $kblCat->id,
+            'nama_alat' => 'Kabel Uji Batal Batch',
+            'spesifikasi' => 'Cat6 2m',
+            'kegunaan' => 'Praktik Siswa',
+            'tracking_mode' => Asset::MODE_BULK_RETURNABLE,
+        ]);
+        $rj45 = Consumable::create([
+            'name' => 'RJ45 Uji Batal Batch',
+            'category_label' => 'Konektor & Material FO/LAN',
+            'unit' => 'pcs',
+            'stock' => 10,
+            'min_stock' => 5,
+            'location_id' => $gudang->id,
+            'is_active' => true,
+        ]);
+
+        // Siapkan foto privat dummy ter-sanitasi
+        $img = imagecreatetruecolor(40, 30);
+        ob_start();
+        imagepng($img);
+        $pngBytes = (string) ob_get_clean();
+        imagedestroy($img);
+        $rawPhoto = 'procurements/raw/test_cancel_batch.png';
+        Storage::disk('local')->put($rawPhoto, $pngBytes);
+        $cleanPhotos = ProcurementService::sanitizePhotos([$rawPhoto]);
+
+        $batch = null;
+        $loan = null;
+
+        try {
+            $this->actingAs($kkk);
+
+            $batch = Procurement::create([
+                'batch_code' => 'BM-TEST-CANCEL-01',
+                'entry_type' => Procurement::TYPE_NEW,
+                'received_at' => today(),
+                'photo_paths' => $cleanPhotos,
+                'created_by' => $kkk->id,
+            ]);
+
+            ProcurementItem::create([
+                'procurement_id' => $batch->id,
+                'asset_id' => $routerAsset->id,
+                'location_id' => $gudang->id,
+                'storage_spot' => 'Rak Batal 1',
+                'quantity' => 2,
+                'unit_price' => 500000,
+                'initial_condition' => 'baik',
+                'initial_status' => AssetItem::STATUS_AVAILABLE,
+            ]);
+
+            ProcurementItem::create([
+                'procurement_id' => $batch->id,
+                'asset_id' => $cableAsset->id,
+                'location_id' => $gudang->id,
+                'storage_spot' => 'Box Batal 1',
+                'quantity' => 15,
+                'unit_price' => 10000,
+                'initial_condition' => 'baik',
+                'initial_status' => AssetItem::STATUS_AVAILABLE,
+            ]);
+
+            ProcurementConsumable::create([
+                'procurement_id' => $batch->id,
+                'consumable_id' => $rj45->id,
+                'quantity' => 30,
+                'unit_price' => 2000,
+                'notes' => 'BHP ikut dalam batch barang masuk',
+            ]);
+
+            $gen = ProcurementService::generateInventory($batch);
+            $this->assertSame(2, $gen['units_created']);
+            $this->assertSame(15, $gen['bulk_added']);
+            $this->assertSame(30, $gen['consumables_added']);
+            $this->assertSame(40, $rj45->fresh()->stock);
+
+            // 1. Halaman Detail Barang Masuk (/admin/procurements/{id}) dapat dibuka KKK & Toolman, ditolak Borrower
+            $viewUrl = "/admin/procurements/{$batch->id}";
+            $this->get($viewUrl)->assertOk()->assertSee('BM-TEST-CANCEL-01');
+
+            $this->flushSession();
+            $this->actingAs($toolman)->get($viewUrl)->assertOk()->assertSee('BM-TEST-CANCEL-01');
+
+            $this->flushSession();
+            $this->actingAs($borrower)->get($viewUrl)->assertForbidden();
+
+            // 2. Guard keamanan: jika ada unit batch sedang dipinjam, pembatalan WAJIB ditolak
+            $this->flushSession();
+            $this->actingAs($kkk);
+            $unit1 = AssetItem::where('procurement_id', $batch->id)->firstOrFail();
+            $loan = LoanService::borrow($unit1->id, 'Siswa Pinjam Uji', 'XI TJKT 1', '123456');
+
+            $blockedByLoan = false;
+            try {
+                ProcurementService::cancelAndDelete($batch);
+            } catch (ValidationException) {
+                $blockedByLoan = true;
+            }
+            $this->assertTrue($blockedByLoan, 'batch tidak boleh dibatalkan saat unitnya masih dipinjam');
+            $this->assertSame(2, AssetItem::where('procurement_id', $batch->id)->count());
+
+            // Kembalikan pinjaman agar guard pinjaman bebas
+            LoanService::returnLoan($loan, [
+                'qr' => $unit1->nomor_seri_atau_qr,
+                'pin' => '123456',
+                'returned_by' => 'Siswa Pinjam Uji',
+                'return_relation' => 'sendiri',
+            ]);
+
+            // 3. Guard keamanan: jika stok BHP sudah terpakai sebagian (< qty batch), pembatalan ditolak
+            ConsumableService::recordTransaction($rj45, ConsumableTransaction::TYPE_OUT, 20, ['purpose' => 'Tes pakai']);
+            $this->assertSame(20, $rj45->fresh()->stock);
+
+            $blockedByBhp = false;
+            try {
+                ProcurementService::rollbackGeneration($batch);
+            } catch (ValidationException) {
+                $blockedByBhp = true;
+            }
+            $this->assertTrue($blockedByBhp, 'batch tidak boleh dibatalkan jika stok BHP tersisa kurang dari qty masuk batch');
+
+            // Kembalikan stok BHP jadi 40 agar rollback bersih dapat diuji
+            ConsumableService::recordTransaction($rj45, ConsumableTransaction::TYPE_IN, 20, ['purpose' => 'Tes kembalikan']);
+            $this->assertSame(40, $rj45->fresh()->stock);
+
+            // 4. Rollback Generate (Edit Ulang): semua unit, wadah massal, & BHP batch dibersihkan, batch tetap ada sbg draft
+            $rolled = ProcurementService::rollbackGeneration($batch);
+            $this->assertSame(2, $rolled['units_deleted']);
+            $this->assertSame(15, $rolled['bulk_reverted']);
+            $this->assertSame(30, $rolled['consumables_reverted']);
+            $this->assertFalse($batch->fresh()->isGenerated());
+            $this->assertSame(0, AssetItem::where('procurement_id', $batch->id)->count());
+            $this->assertNull(BulkStock::where('asset_id', $cableAsset->id)->where('storage_spot', 'Box Batal 1')->first());
+            $this->assertSame(10, $rj45->fresh()->stock);
+
+            // 5. Generate ulang → lalu Batalkan & Hapus Total Batch (hapus batch + unit + wadah + BHP + foto privat)
+            ProcurementService::generateInventory($batch);
+            $this->assertSame(2, AssetItem::where('procurement_id', $batch->id)->count());
+            $this->assertSame(40, $rj45->fresh()->stock);
+
+            $cancelled = ProcurementService::cancelAndDelete($batch);
+            $this->assertSame(2, $cancelled['units_deleted']);
+            $this->assertSame(15, $cancelled['bulk_reverted']);
+            $this->assertSame(30, $cancelled['consumables_reverted']);
+            $this->assertNull(Procurement::find($batch->id));
+            $this->assertSame(0, AssetItem::where('asset_id', $routerAsset->id)->count());
+            $this->assertNull(BulkStock::where('asset_id', $cableAsset->id)->first());
+            $this->assertSame(10, $rj45->fresh()->stock);
+            $this->assertFalse(Storage::disk('local')->exists($cleanPhotos[0]), 'foto privat batch yang dibatalkan harus dibersihkan');
+            $this->assertTrue(ActivityLog::where('action', 'procurement.cancelled')->where('user_id', $kkk->id)->exists());
+
+            $batch = null;
+        } finally {
+            foreach ($cleanPhotos as $p) {
+                Storage::disk('local')->delete($p);
+            }
+            Storage::disk('local')->delete($rawPhoto);
+            if ($loan) {
+                ActivityLog::where('subject_type', 'Loan')->where('subject_id', $loan->id)->delete();
+                $loan->delete();
+            }
+            if ($batch) {
+                AssetItem::where('procurement_id', $batch->id)->delete();
+                $batch->delete();
+            }
+            ActivityLog::whereIn('action', ['procurement.generated', 'procurement.rolled_back', 'procurement.cancelled', 'consumable.restocked', 'consumable.used'])
+                ->where('user_id', $kkk->id)
+                ->delete();
+            BulkStock::where('asset_id', $cableAsset->id)->delete();
+            $rj45->delete();
+            $routerAsset->delete();
+            $cableAsset->delete();
+            $kkk->delete();
+            $toolman->delete();
             $borrower->delete();
         }
     }

@@ -52,17 +52,28 @@ class FundingSource extends Model
 
     public function totalUnitsEntered(): int
     {
-        return (int) ProcurementItem::query()
-            ->whereIn('procurement_id', $this->procurements()->select('id'))
-            ->sum('quantity');
+        $procIds = $this->procurements()->select('id');
+
+        return (int) ProcurementItem::query()->whereIn('procurement_id', $procIds)->sum('quantity')
+            + (int) ProcurementConsumable::query()->whereIn('procurement_id', $procIds)->sum('quantity');
     }
 
     public function totalEstimatedValue(): int
     {
-        return (int) ProcurementItem::query()
-            ->whereIn('procurement_id', $this->procurements()->select('id'))
+        $procIds = $this->procurements()->select('id');
+
+        $assetVal = (int) ProcurementItem::query()
+            ->whereIn('procurement_id', $procIds)
             ->whereNotNull('unit_price')
             ->selectRaw('COALESCE(SUM(quantity * unit_price), 0) as total')
             ->value('total');
+
+        $consumableVal = (int) ProcurementConsumable::query()
+            ->whereIn('procurement_id', $procIds)
+            ->whereNotNull('unit_price')
+            ->selectRaw('COALESCE(SUM(quantity * unit_price), 0) as total')
+            ->value('total');
+
+        return $assetVal + $consumableVal;
     }
 }

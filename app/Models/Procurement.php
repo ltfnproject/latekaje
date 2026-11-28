@@ -55,9 +55,19 @@ class Procurement extends Model
         return $this->hasMany(ProcurementItem::class);
     }
 
+    public function consumableItems(): HasMany
+    {
+        return $this->hasMany(ProcurementConsumable::class);
+    }
+
     public function assetItems(): HasMany
     {
         return $this->hasMany(AssetItem::class);
+    }
+
+    public function consumableTransactions(): HasMany
+    {
+        return $this->hasMany(ConsumableTransaction::class);
     }
 
     public function isGenerated(): bool
@@ -67,14 +77,22 @@ class Procurement extends Model
 
     public function totalUnits(): int
     {
-        return (int) $this->items()->sum('quantity');
+        return (int) $this->items()->sum('quantity')
+            + (int) $this->consumableItems()->sum('quantity');
     }
 
     public function totalPrice(): int
     {
-        return (int) $this->items()
+        $assetTotal = (int) $this->items()
             ->whereNotNull('unit_price')
             ->selectRaw('COALESCE(SUM(quantity * unit_price), 0) as total')
             ->value('total');
+
+        $consumableTotal = (int) $this->consumableItems()
+            ->whereNotNull('unit_price')
+            ->selectRaw('COALESCE(SUM(quantity * unit_price), 0) as total')
+            ->value('total');
+
+        return $assetTotal + $consumableTotal;
     }
 }

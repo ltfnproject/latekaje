@@ -32,9 +32,20 @@ class CreateProcurement extends CreateRecord
         try {
             $result = ProcurementService::generateInventory($this->record);
 
+            $parts = [];
+            if ($result['units_created'] > 0) {
+                $parts[] = "{$result['units_created']} unit satuan";
+            }
+            if ($result['bulk_added'] > 0) {
+                $parts[] = "{$result['bulk_added']} stok pinjam massal";
+            }
+            if ($result['consumables_added'] > 0) {
+                $parts[] = "{$result['consumables_added']} stok BHP";
+            }
+
             $notification = Notification::make()
                 ->title('Barang masuk & inventaris berhasil dibuat!')
-                ->body("Batch {$this->record->batch_code}: {$result['units_created']} unit satuan + {$result['bulk_added']} stok pinjam massal otomatis masuk inventaris.")
+                ->body("Batch {$this->record->batch_code}: ".implode(', ', $parts).' otomatis masuk inventaris.')
                 ->success();
 
             if ($result['units_created'] > 0 && Gate::allows('print', AssetItem::class)) {
@@ -49,7 +60,7 @@ class CreateProcurement extends CreateRecord
             $notification->send();
         } catch (ValidationException $e) {
             Notification::make()
-                ->title('Batch tersimpan, namun unit belum digenerate')
+                ->title('Batch tersimpan, namun unit/stok belum digenerate')
                 ->body(collect($e->errors())->flatten()->first() ?? $e->getMessage())
                 ->warning()
                 ->send();
@@ -58,6 +69,6 @@ class CreateProcurement extends CreateRecord
 
     protected function getRedirectUrl(): string
     {
-        return $this->getResource()::getUrl('index');
+        return $this->getResource()::getUrl('view', ['record' => $this->record]);
     }
 }
