@@ -495,6 +495,8 @@ class AssetItemsTable
                         })
                         ->deselectRecordsAfterCompletion(),
                 ]),
-            ]);
+            ])
+            ->paginated([10, 25, 50, 100, 'all'])
+            ->defaultPaginationPageOption(25);
     }
 }

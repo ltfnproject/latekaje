@@ -230,6 +230,8 @@ class AssetsTable
                     DeleteBulkAction::make()
                         ->label(__('common.delete')),
                 ]),
-            ]);
+            ])
+            ->paginated([10, 25, 50, 100, 'all'])
+            ->defaultPaginationPageOption(25);
     }
 }
