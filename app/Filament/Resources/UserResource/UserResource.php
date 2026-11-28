@@ -230,6 +230,7 @@ class UserResource extends Resource
     {
         return $table
             ->modifyQueryUsing(fn (Builder $query): Builder => $query->with('member'))
+            ->defaultSort(fn (Builder $query, string $direction): Builder => self::applyDefaultSort($query, $direction))
             ->columns([
                 TextColumn::make('name')
                     ->label(__('users.name_label'))
@@ -248,11 +249,13 @@ class UserResource extends Resource
                     ->color('gray')
                     ->copyable()
                     ->searchable()
+                    ->sortable(query: fn (Builder $query, string $direction): Builder => self::applyCodeSort($query, $direction))
                     ->placeholder('-'),
 
                 TextColumn::make('role')
                     ->label(__('users.role_label'))
                     ->badge()
+                    ->sortable(query: fn (Builder $query, string $direction): Builder => self::applyRoleSort($query, $direction))
                     ->formatStateUsing(fn (string $state): string => match ($state) {
                         'superadmin' => __('users.role_superadmin'),
                         'admin' => __('users.role_admin'),
@@ -363,6 +366,41 @@ class UserResource extends Resource
                         ->label(__('common.delete')),
                 ]),
             ]);
+    }
+
+    public static function applyDefaultSort(Builder $query, string $direction = 'asc'): Builder
+    {
+        $dir = strtolower($direction) === 'desc' ? 'desc' : 'asc';
+
+        self::applyRoleSort($query, $dir);
+        self::applyCodeSort($query, 'asc');
+
+        return $query->orderBy('users.name', 'asc')->orderBy('users.id', 'asc');
+    }
+
+    public static function applyRoleSort(Builder $query, string $direction = 'asc'): Builder
+    {
+        $dir = strtolower($direction) === 'desc' ? 'desc' : 'asc';
+
+        return $query->orderByRaw(
+            "CASE users.role
+                WHEN 'superadmin' THEN 1
+                WHEN 'admin' THEN 2
+                WHEN 'staff' THEN 3
+                WHEN 'assistant' THEN 4
+                WHEN 'users' THEN 5
+                ELSE 99
+            END {$dir}"
+        );
+    }
+
+    public static function applyCodeSort(Builder $query, string $direction = 'asc'): Builder
+    {
+        $dir = strtolower($direction) === 'desc' ? 'desc' : 'asc';
+
+        return $query
+            ->orderByRaw("CASE WHEN users.code IS NULL OR TRIM(users.code) = '' THEN 1 ELSE 0 END ASC")
+            ->orderByRaw("CASE WHEN users.code REGEXP '^[0-9]+$' THEN LPAD(users.code, 32, '0') ELSE CONCAT('z', LOWER(users.code)) END {$dir}");
     }
 
     public static function getPages(): array

@@ -2,11 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Filament\Resources\UserResource\Pages\ListUsers;
 use App\Models\Group;
 use App\Models\Member;
 use App\Models\User;
 use App\Services\MemberAccountSync;
 use Illuminate\Support\Facades\Hash;
+use Livewire\Livewire;
 use Tests\TestCase;
 
 class AccountMemberUnificationTest extends TestCase
@@ -191,5 +193,52 @@ class AccountMemberUnificationTest extends TestCase
         $this->get('/admin/user-resource/users/create')->assertOk();
         $this->get('/admin/members')->assertOk();
         $this->get('/admin/members/create')->assertOk();
+    }
+
+    public function test_users_table_default_sorts_by_highest_role_then_code(): void
+    {
+        $superadmin = User::where('role', 'superadmin')->firstOrFail();
+
+        $created = collect([
+            User::create(['name' => 'Sort User 10010', 'email' => 'sort-u-10010@latekaje.test', 'code' => '10010', 'password' => 'secret1234', 'role' => 'users', 'is_active' => true, 'must_change_password' => false]),
+            User::create(['name' => 'Sort User 900', 'email' => 'sort-u-900@latekaje.test', 'code' => '900', 'password' => 'secret1234', 'role' => 'users', 'is_active' => true, 'must_change_password' => false]),
+            User::create(['name' => 'Sort User 1002', 'email' => 'sort-u-1002@latekaje.test', 'code' => '1002', 'password' => 'secret1234', 'role' => 'users', 'is_active' => true, 'must_change_password' => false]),
+            User::create(['name' => 'Sort User NoCode', 'email' => 'sort-u-nocode@latekaje.test', 'code' => null, 'password' => 'secret1234', 'role' => 'users', 'is_active' => true, 'must_change_password' => false]),
+            User::create(['name' => 'Sort Assistant', 'email' => 'sort-asst@latekaje.test', 'code' => '3001', 'password' => 'secret1234', 'role' => 'assistant', 'is_active' => true, 'must_change_password' => false]),
+            User::create(['name' => 'Sort Staff', 'email' => 'sort-staff@latekaje.test', 'code' => '2001', 'password' => 'secret1234', 'role' => 'staff', 'is_active' => true, 'must_change_password' => false]),
+            User::create(['name' => 'Sort KKK', 'email' => 'sort-kkk@latekaje.test', 'code' => '1001', 'password' => 'secret1234', 'role' => 'admin', 'is_active' => true, 'must_change_password' => false]),
+        ]);
+
+        try {
+            $this->actingAs($superadmin);
+
+            $component = Livewire::test(ListUsers::class);
+            $ids = $component->instance()->getFilteredSortedTableQuery()->pluck('id')->all();
+
+            $positions = [
+                'superadmin' => array_search($superadmin->id, $ids, true),
+                'admin' => array_search($created[6]->id, $ids, true),
+                'staff' => array_search($created[5]->id, $ids, true),
+                'assistant' => array_search($created[4]->id, $ids, true),
+                'u_900' => array_search($created[1]->id, $ids, true),
+                'u_1002' => array_search($created[2]->id, $ids, true),
+                'u_10010' => array_search($created[0]->id, $ids, true),
+                'u_nocode' => array_search($created[3]->id, $ids, true),
+            ];
+
+            foreach ($positions as $label => $pos) {
+                $this->assertIsInt($pos, "Record {$label} harus muncul pada hasil query daftar user");
+            }
+
+            $this->assertLessThan($positions['admin'], $positions['superadmin']);
+            $this->assertLessThan($positions['staff'], $positions['admin']);
+            $this->assertLessThan($positions['assistant'], $positions['staff']);
+            $this->assertLessThan($positions['u_900'], $positions['assistant']);
+            $this->assertLessThan($positions['u_1002'], $positions['u_900']);
+            $this->assertLessThan($positions['u_10010'], $positions['u_1002']);
+            $this->assertLessThan($positions['u_nocode'], $positions['u_10010']);
+        } finally {
+            $created->each->delete();
+        }
     }
 }
