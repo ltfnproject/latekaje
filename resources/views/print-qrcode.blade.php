@@ -4,9 +4,43 @@
     <meta charset="UTF-8">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ __('units.print_title') }} — {{ $contextLabel }}</title>
+    @php
+        $presetMeta = $presets[$activePreset] ?? $presets['medium_24'];
+        $qrSize = (int) ($presetMeta['qr_size'] ?? 68);
+        $isThermal = $activePreset !== 'detail_a4';
+        $pageSizeCss = match ($activePreset) {
+            'micro_12x12' => '12mm 12mm',
+            'mini_12' => '40mm 12mm',
+            'flag_12' => '72mm 12mm',
+            'medium_24' => '55mm 24mm',
+            default => $paper === 'a3' ? 'A3 portrait' : 'A4 portrait',
+        };
+        $labelIds = $labels->pluck('id')->values()->all();
+        $unprintedInView = $labels->filter(fn (array $l) => empty($l['printed_at']))->count();
+        $ptouchExportUrl = route('print.qr.export-ptouch', request()->query());
+    @endphp
     <style>
+        :root {
+            --cal-top: 0mm;
+            --cal-left: 0mm;
+            --cal-scale: 1;
+        }
         * { box-sizing: border-box; }
-        body { font-family: system-ui, -apple-system, sans-serif; margin: 16px; color: #111827; background: #f8fafc; }
+        body {
+            font-family: 'Segoe UI', Arial, Helvetica, sans-serif;
+            margin: 16px;
+            color: #0f172a;
+            background: #f1f5f9;
+        }
+
+        /* ================= TOOLBAR LAYAR (TIDAK IKUT TERCETAK) ================= */
+        .toolbar-wrap {
+            max-width: 1160px;
+            margin: 0 auto 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
         .toolbar {
             display: flex;
             flex-wrap: wrap;
@@ -14,38 +48,82 @@
             justify-content: space-between;
             gap: 12px;
             background: #ffffff;
-            border: 1px solid #e2e8f0;
+            border: 1px solid #cbd5e1;
             border-radius: 12px;
             padding: 12px 16px;
-            margin-bottom: 16px;
             box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
         }
         .toolbar-info h1 { font-size: 15px; margin: 0; font-weight: 700; color: #0f172a; }
-        .toolbar-info p { font-size: 12px; margin: 3px 0 0; color: #64748b; }
+        .toolbar-info p { font-size: 12px; margin: 3px 0 0; color: #475569; }
         .toolbar-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+        .preset-bar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-radius: 12px;
+            padding: 10px 14px;
+        }
+        .preset-pills { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
         .btn {
             display: inline-flex;
             align-items: center;
             gap: 6px;
             border-radius: 8px;
-            padding: 8px 13px;
-            font-size: 13px;
+            padding: 7px 12px;
+            font-size: 12.5px;
             font-weight: 600;
             border: 1px solid #cbd5e1;
             background: #ffffff;
             color: #1e293b;
             cursor: pointer;
             text-decoration: none;
+            line-height: 1.2;
         }
-        .btn:hover { background: #f1f5f9; }
+        .btn:hover { background: #f8fafc; }
         .btn-primary { background: #d97706; border-color: #b45309; color: #ffffff; }
         .btn-primary:hover { background: #b45309; }
         .btn-success { background: #059669; border-color: #047857; color: #ffffff; }
         .btn-success:hover { background: #047857; }
+        .btn-dark { background: #0f172a; border-color: #0f172a; color: #ffffff; }
+        .btn-dark:hover { background: #1e293b; }
         .btn-tab-active { background: #fef3c7; border-color: #f59e0b; color: #92400e; }
+        .tape-guide {
+            background: #fffbeb;
+            border: 1px solid #fcd34d;
+            border-radius: 10px;
+            padding: 9px 14px;
+            font-size: 12px;
+            color: #78350f;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+        .cal-controls {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px;
+            font-size: 12px;
+            color: #334155;
+        }
+        .cal-controls label { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; }
+        .cal-controls input[type="number"],
+        .cal-controls select {
+            width: 68px;
+            padding: 4px 6px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-size: 12px;
+            background: #fff;
+        }
         .status-banner {
             display: none;
-            margin-bottom: 12px;
             padding: 10px 14px;
             border-radius: 10px;
             font-size: 13px;
@@ -55,100 +133,441 @@
             color: #065f46;
         }
         .status-banner.is-visible { display: block; }
-        .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-        .sticker {
-            position: relative;
-            background: #ffffff;
-            border: 1px dashed #999;
-            border-radius: 8px;
-            padding: 12px 10px 10px;
-            text-align: center;
-            page-break-inside: avoid;
-        }
-        .sticker-badge {
+        .sticker-status-pill {
             display: inline-block;
             font-size: 10px;
             font-weight: 700;
             padding: 2px 7px;
             border-radius: 999px;
-            margin-bottom: 6px;
+            margin-bottom: 5px;
         }
-        .sticker-badge--new { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
-        .sticker-badge--done { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
-        .sticker .name { font-weight: bold; font-size: 13px; margin-top: 6px; color: #000; }
-        .sticker .code { font-size: 12px; color: #222; font-family: ui-monospace, monospace; margin-top: 2px; }
-        .sticker .meta { font-size: 10px; color: #555; margin-top: 2px; }
+        .pill-new { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+        .pill-done { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
         .empty-box {
+            max-width: 720px;
+            margin: 24px auto;
             background: #ffffff;
-            border: 1px dashed #cbd5e1;
+            border: 1px dashed #94a3b8;
             border-radius: 12px;
             padding: 32px 20px;
             text-align: center;
             color: #475569;
         }
+
+        /* ================= PRATINJAU THERMAL & A4/A3 (100% MONOKROM #000000) ================= */
+        .preview-stage {
+            max-width: 1160px;
+            margin: 0 auto;
+        }
+        .thermal-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 14px;
+            align-items: flex-start;
+        }
+        .thermal-item-wrap {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            background: #ffffff;
+            padding: 8px;
+            border-radius: 10px;
+            border: 1px solid #cbd5e1;
+        }
+        .qr-svg svg {
+            display: block;
+            width: 100%;
+            height: 100%;
+            shape-rendering: crispEdges;
+        }
+
+        /* 1. XXS / MICRO 12x12mm (Pita 12mm Putih) */
+        .label-micro_12x12 {
+            width: 12mm;
+            height: 12mm;
+            background: #ffffff;
+            color: #000000;
+            border: 0.2mm solid #000000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 0.4mm;
+            overflow: hidden;
+        }
+        .label-micro_12x12 .qr-svg { width: 8.8mm; height: 8.8mm; }
+        .label-micro_12x12 .micro-code {
+            font-family: Consolas, 'Courier New', monospace;
+            font-size: 4.2pt;
+            font-weight: 700;
+            line-height: 1;
+            margin-top: 0.4mm;
+            white-space: nowrap;
+            color: #000000;
+        }
+
+        /* 2. XS / MINI 12mm (40x12mm — Pita 12mm Putih) */
+        .label-mini_12 {
+            width: 40mm;
+            height: 12mm;
+            background: #ffffff;
+            color: #000000;
+            border: 0.25mm solid #000000;
+            display: flex;
+            align-items: center;
+            gap: 1.4mm;
+            padding: 0.8mm 1.2mm;
+            overflow: hidden;
+        }
+        .label-mini_12 .qr-svg { width: 9.8mm; height: 9.8mm; flex-shrink: 0; }
+        .label-mini_12 .txt { min-width: 0; flex: 1; line-height: 1.1; }
+        .label-mini_12 .hdr { font-size: 4.6pt; font-weight: 800; letter-spacing: 0.2pt; border-bottom: 0.2mm solid #000; padding-bottom: 0.3mm; }
+        .label-mini_12 .code { font-family: Consolas, 'Courier New', monospace; font-size: 6.4pt; font-weight: 800; margin-top: 0.5mm; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .label-mini_12 .name { font-size: 5pt; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 0.2mm; }
+
+        /* 3. CF / CABLE FLAG 12mm (72x12mm — Pita 12mm Kuning) */
+        .label-flag_12 {
+            width: 72mm;
+            height: 12mm;
+            background: #ffffff;
+            color: #000000;
+            border: 0.25mm solid #000000;
+            display: flex;
+            align-items: stretch;
+            overflow: hidden;
+        }
+        .label-flag_12 .flag-wing {
+            width: 27mm;
+            display: flex;
+            align-items: center;
+            gap: 1mm;
+            padding: 0.7mm 1mm;
+            overflow: hidden;
+        }
+        .label-flag_12 .flag-fold {
+            width: 18mm;
+            border-left: 0.25mm dashed #000000;
+            border-right: 0.25mm dashed #000000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 4.5pt;
+            font-weight: 700;
+            letter-spacing: 0.3pt;
+            color: #000000;
+        }
+        .label-flag_12 .qr-svg { width: 9.4mm; height: 9.4mm; flex-shrink: 0; }
+        .label-flag_12 .txt { min-width: 0; flex: 1; line-height: 1.1; }
+        .label-flag_12 .hdr { font-size: 4.2pt; font-weight: 800; }
+        .label-flag_12 .code { font-family: Consolas, 'Courier New', monospace; font-size: 5.4pt; font-weight: 800; margin-top: 0.3mm; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .label-flag_12 .name { font-size: 4.4pt; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        /* 4. M / SEDANG 24mm (55x24mm — Pita 24mm Putih / Kuning) */
+        .label-medium_24 {
+            width: 55mm;
+            height: 24mm;
+            background: #ffffff;
+            color: #000000;
+            border: 0.35mm solid #000000;
+            display: flex;
+            align-items: center;
+            gap: 2.2mm;
+            padding: 1.5mm 2mm;
+            overflow: hidden;
+        }
+        .label-medium_24 .qr-svg { width: 19.5mm; height: 19.5mm; flex-shrink: 0; }
+        .label-medium_24 .txt { min-width: 0; flex: 1; display: flex; flex-direction: column; justify-content: center; }
+        .label-medium_24 .hdr {
+            font-size: 6.5pt;
+            font-weight: 900;
+            letter-spacing: 0.4pt;
+            border-bottom: 0.35mm solid #000000;
+            padding-bottom: 0.6mm;
+            margin-bottom: 1mm;
+        }
+        .label-medium_24 .code {
+            font-family: Consolas, 'Courier New', monospace;
+            font-size: 8.5pt;
+            font-weight: 900;
+            line-height: 1.1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .label-medium_24 .name {
+            font-size: 6.8pt;
+            font-weight: 700;
+            line-height: 1.15;
+            margin-top: 0.8mm;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .label-medium_24 .meta {
+            font-size: 5.5pt;
+            font-weight: 600;
+            margin-top: 0.6mm;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* 5. L / XL DETAIL A4 / A3 (Grid Stiker dengan Offset Slot) */
+        .sheet-grid {
+            display: grid;
+            grid-template-columns: repeat({{ $paper === 'a3' ? 4 : 3 }}, 1fr);
+            gap: 4mm;
+            background: #ffffff;
+            padding: 6mm;
+            border: 1px solid #cbd5e1;
+            border-radius: 12px;
+        }
+        .sheet-slot-empty {
+            min-height: 36mm;
+            border: 0.25mm dashed #cbd5e1;
+            border-radius: 3mm;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            color: #94a3b8;
+        }
+        .label-detail_a4 {
+            background: #ffffff;
+            color: #000000;
+            border: 0.4mm solid #000000;
+            border-radius: 2mm;
+            padding: 2.2mm;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            min-height: 36mm;
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+        .label-detail_a4 .hdr-bar {
+            background: #000000;
+            color: #ffffff;
+            font-size: 6.5pt;
+            font-weight: 800;
+            letter-spacing: 0.4pt;
+            padding: 0.9mm 1.8mm;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+        .label-detail_a4 .body-row {
+            display: flex;
+            align-items: center;
+            gap: 2.5mm;
+            margin-top: 1.8mm;
+            flex: 1;
+        }
+        .label-detail_a4 .qr-svg { width: 22mm; height: 22mm; flex-shrink: 0; }
+        .label-detail_a4 .txt { min-width: 0; flex: 1; }
+        .label-detail_a4 .code {
+            font-family: Consolas, 'Courier New', monospace;
+            font-size: 9pt;
+            font-weight: 900;
+            line-height: 1.1;
+        }
+        .label-detail_a4 .name {
+            font-size: 7.5pt;
+            font-weight: 800;
+            line-height: 1.2;
+            margin-top: 0.8mm;
+        }
+        .label-detail_a4 .spec {
+            font-size: 6pt;
+            line-height: 1.2;
+            margin-top: 0.6mm;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .label-detail_a4 .foot {
+            border-top: 0.25mm solid #000000;
+            margin-top: 1.5mm;
+            padding-top: 0.8mm;
+            font-size: 5.8pt;
+            font-weight: 700;
+            display: flex;
+            justify-content: space-between;
+            gap: 4px;
+        }
+
+        /* ================= PRINT MEDIA RULES (THERMAL & A4/A3) ================= */
+        @page {
+            size: {{ $pageSizeCss }};
+            margin: {{ $isThermal ? '0mm' : '8mm' }};
+        }
         @media print {
-            body { margin: 0; background: #fff; }
+            body {
+                margin: 0;
+                padding: 0;
+                background: #ffffff !important;
+                color: #000000 !important;
+            }
             .no-print { display: none !important; }
-            .sticker { border: 1px dashed #999; }
+            .preview-stage {
+                max-width: none;
+                margin: 0;
+                padding-top: var(--cal-top);
+                padding-left: var(--cal-left);
+                transform: scale(var(--cal-scale));
+                transform-origin: top left;
+            }
+            @if ($isThermal)
+                .thermal-list {
+                    display: block;
+                    gap: 0;
+                }
+                .thermal-item-wrap {
+                    border: none;
+                    border-radius: 0;
+                    padding: 0;
+                    margin: 0;
+                    background: #ffffff;
+                    page-break-after: always;
+                    break-after: page;
+                }
+                .thermal-item-wrap:last-child {
+                    page-break-after: auto;
+                    break-after: auto;
+                }
+            @else
+                .sheet-grid {
+                    border: none;
+                    border-radius: 0;
+                    padding: 0;
+                }
+                .sheet-slot-empty {
+                    border: none;
+                    color: transparent;
+                }
+            @endif
         }
     </style>
 </head>
 <body>
-    @php
-        $labelIds = $labels->pluck('id')->values()->all();
-        $unprintedInView = $labels->filter(fn (array $l) => empty($l['printed_at']))->count();
-    @endphp
+    <div class="toolbar-wrap no-print">
+        <div class="toolbar">
+            <div class="toolbar-info">
+                <h1>{{ $contextLabel }} — {{ $labels->count() }} {{ $printType === 'bulk' ? 'wadah' : 'unit' }}</h1>
+                <p>
+                    {{ $unprintedInView }} belum dicetak di halaman ini · Total belum dicetak di sistem: <strong>{{ $unprintedTotal }}</strong>
+                </p>
+            </div>
 
-    <div class="toolbar no-print">
-        <div class="toolbar-info">
-            <h1>{{ $contextLabel }} — {{ $labels->count() }} {{ $printType === 'bulk' ? 'wadah' : 'unit' }}</h1>
-            <p>
-                {{ $unprintedInView }} belum dicetak di halaman ini · Total belum dicetak di sistem: <strong>{{ $unprintedTotal }}</strong>
-            </p>
-        </div>
-
-        <div class="toolbar-actions">
-            @if ($printType === 'bulk')
-                <a href="{{ route('print.qr', ['type' => 'bulk', 'ids' => 'unprinted']) }}"
-                   class="btn {{ $activeMode === 'unprinted' ? 'btn-tab-active' : '' }}">
-                    Belum Dicetak ({{ $unprintedTotal }})
-                </a>
-                <a href="{{ route('print.qr', ['type' => 'bulk', 'ids' => 'all']) }}"
-                   class="btn {{ $activeMode === 'all' ? 'btn-tab-active' : '' }}">
-                    Semua Wadah
-                </a>
-            @else
-                <a href="{{ route('print.qr', ['ids' => 'unprinted']) }}"
-                   class="btn {{ $activeMode === 'unprinted' ? 'btn-tab-active' : '' }}">
-                    Belum Dicetak ({{ $unprintedTotal }})
-                </a>
-                <a href="{{ route('print.qr', ['ids' => 'all']) }}"
-                   class="btn {{ $activeMode === 'all' ? 'btn-tab-active' : '' }}">
-                    Semua Unit
-                </a>
-                @if ($procurement)
-                    <a href="{{ route('print.qr', ['procurement_id' => $procurement->id, 'only_unprinted' => 1]) }}"
-                       class="btn">
-                        Hanya yg Belum Dicetak di Batch Ini
+            <div class="toolbar-actions">
+                @if ($printType === 'bulk')
+                    <a href="{{ route('print.qr', ['type' => 'bulk', 'ids' => 'unprinted', 'preset' => $requestedPreset]) }}"
+                       class="btn {{ $activeMode === 'unprinted' ? 'btn-tab-active' : '' }}">
+                        Belum Dicetak ({{ $unprintedTotal }})
                     </a>
+                    <a href="{{ route('print.qr', ['type' => 'bulk', 'ids' => 'all', 'preset' => $requestedPreset]) }}"
+                       class="btn {{ $activeMode === 'all' ? 'btn-tab-active' : '' }}">
+                        Semua Wadah
+                    </a>
+                @else
+                    <a href="{{ route('print.qr', ['ids' => 'unprinted', 'preset' => $requestedPreset]) }}"
+                       class="btn {{ $activeMode === 'unprinted' ? 'btn-tab-active' : '' }}">
+                        Belum Dicetak ({{ $unprintedTotal }})
+                    </a>
+                    <a href="{{ route('print.qr', ['ids' => 'all', 'preset' => $requestedPreset]) }}"
+                       class="btn {{ $activeMode === 'all' ? 'btn-tab-active' : '' }}">
+                        Semua Unit
+                    </a>
+                    @if ($procurement)
+                        <a href="{{ route('print.qr', ['procurement_id' => $procurement->id, 'only_unprinted' => 1, 'preset' => $requestedPreset]) }}"
+                           class="btn">
+                            Hanya Belum Dicetak di Batch Ini
+                        </a>
+                    @endif
                 @endif
-            @endif
 
-            @if ($labels->isNotEmpty())
-                <button type="button" class="btn btn-primary" onclick="printAndMark()">
-                    🖨️ {{ __('units.print_and_mark') }}
-                </button>
-                <button type="button" class="btn" onclick="window.print()">
-                    {{ __('units.print_only') }}
-                </button>
-                <button type="button" class="btn btn-success" onclick="markPrintedOnly()">
-                    ✓ {{ __('units.mark_printed') }}
-                </button>
-            @endif
+                @if ($labels->isNotEmpty())
+                    <a href="{{ $ptouchExportUrl }}" class="btn btn-dark" title="Unduh CSV siap impor untuk Brother P-touch Editor (Auto-Cut massal)">
+                        ⬇ CSV P-touch Editor
+                    </a>
+                    <button type="button" class="btn btn-primary" onclick="printAndMark()">
+                        🖨️ {{ __('units.print_and_mark') }}
+                    </button>
+                    <button type="button" class="btn" onclick="window.print()">
+                        {{ __('units.print_only') }}
+                    </button>
+                    <button type="button" class="btn btn-success" onclick="markPrintedOnly()">
+                        ✓ {{ __('units.mark_printed') }}
+                    </button>
+                @endif
+            </div>
         </div>
-    </div>
 
-    <div id="print-status-banner" class="status-banner no-print"></div>
+        <div class="preset-bar">
+            <div class="preset-pills">
+                <span style="font-size: 12px; font-weight: 700; color: #334155; margin-right: 4px;">Preset Stiker:</span>
+                @foreach ($presets as $key => $meta)
+                    <a href="{{ route('print.qr', array_merge($queryBase, ['preset' => $key, 'paper' => $paper, 'offset' => $offset])) }}"
+                       class="btn {{ $activePreset === $key ? 'btn-tab-active' : '' }}">
+                        {{ $meta['label'] }}
+                    </a>
+                @endforeach
+            </div>
+
+            <div class="cal-controls">
+                @if ($activePreset === 'detail_a4')
+                    <form method="GET" action="{{ route('print.qr') }}" style="display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                        @foreach ($queryBase as $k => $v)
+                            @if (! is_array($v))
+                                <input type="hidden" name="{{ $k }}" value="{{ $v }}">
+                            @endif
+                        @endforeach
+                        <input type="hidden" name="preset" value="detail_a4">
+                        <label>
+                            Kertas:
+                            <select name="paper" onchange="this.form.submit()">
+                                <option value="a4" {{ $paper === 'a4' ? 'selected' : '' }}>A4 (3 kol)</option>
+                                <option value="a3" {{ $paper === 'a3' ? 'selected' : '' }}>A3 (4 kol)</option>
+                            </select>
+                        </label>
+                        <label title="Lewati N slot kosong di awal lembar stiker bekas">
+                            Offset Slot:
+                            <input type="number" name="offset" min="0" max="40" value="{{ $offset }}" onchange="this.form.submit()">
+                        </label>
+                    </form>
+                @endif
+
+                <label title="Geser atas/bawah saat print (tersimpan di browser)">
+                    Atas (mm):
+                    <input id="cal-top" type="number" step="0.5" min="-3" max="10" value="0" oninput="applyCalibration()">
+                </label>
+                <label title="Geser kiri/kanan saat print (tersimpan di browser)">
+                    Kiri (mm):
+                    <input id="cal-left" type="number" step="0.5" min="-3" max="10" value="0" oninput="applyCalibration()">
+                </label>
+                <label title="Skala cetak (85%–115%)">
+                    Skala (%):
+                    <input id="cal-scale" type="number" step="1" min="85" max="115" value="100" oninput="applyCalibration()">
+                </label>
+                <button type="button" class="btn" onclick="resetCalibration()" style="padding: 5px 8px; font-size: 11px;">Reset</button>
+            </div>
+        </div>
+
+        <div class="tape-guide">
+            <div>
+                <strong>Panduan Printer ({{ $presetMeta['tape'] }}):</strong> {{ $presetMeta['paper_hint'] }}
+            </div>
+            <div>
+                Mode <strong>Monokrom #000000</strong> · Header: <strong>INVENTARIS TJKT</strong>
+            </div>
+        </div>
+
+        <div id="print-status-banner" class="status-banner"></div>
+    </div>
 
     @if ($labels->isEmpty())
         <div class="empty-box no-print">
@@ -158,33 +577,163 @@
             </p>
         </div>
     @else
-        <div class="grid">
-            @foreach ($labels as $label)
-                <div class="sticker" data-label-id="{{ $label['id'] }}">
-                    <div class="no-print">
-                        @if (empty($label['printed_at']))
-                            <span class="sticker-badge sticker-badge--new js-badge">BARU · BELUM DICETAK</span>
-                        @else
-                            <span class="sticker-badge sticker-badge--done js-badge">
-                                Tercetak {{ $label['print_count'] }}× ({{ $label['printed_at']->format('d M Y') }})
-                            </span>
-                        @endif
-                    </div>
-                    {!! QrCode::size(90)->generate($label['code']) !!}
-                    <div class="name">{{ $label['name'] }}</div>
-                    <div class="code">{{ $label['code'] }}</div>
-                    @if ($label['meta'] !== '')
-                        <div class="meta">{{ $label['meta'] }}</div>
-                    @endif
+        <div class="preview-stage">
+            @if ($activePreset === 'detail_a4')
+                <div class="sheet-grid">
+                    @for ($i = 0; $i < $offset; $i++)
+                        <div class="sheet-slot-empty">Slot Kosong #{{ $i + 1 }}</div>
+                    @endfor
+
+                    @foreach ($labels as $label)
+                        <div>
+                            <div class="no-print">
+                                @if (empty($label['printed_at']))
+                                    <span class="sticker-status-pill pill-new js-badge">BARU · BELUM DICETAK</span>
+                                @else
+                                    <span class="sticker-status-pill pill-done js-badge">
+                                        Tercetak {{ $label['print_count'] }}× ({{ $label['printed_at']->format('d M Y') }})
+                                    </span>
+                                @endif
+                            </div>
+                            <div class="label-detail_a4" data-label-id="{{ $label['id'] }}">
+                                <div class="hdr-bar">
+                                    <span>INVENTARIS TJKT</span>
+                                    <span>SMK WALISONGO PECANGAAN</span>
+                                </div>
+                                <div class="body-row">
+                                    <div class="qr-svg">
+                                        {!! QrCode::size($qrSize)->margin(0)->errorCorrection('M')->generate($label['code']) !!}
+                                    </div>
+                                    <div class="txt">
+                                        <div class="code">{{ $label['code'] }}</div>
+                                        <div class="name">{{ $label['name'] }}</div>
+                                        @if (! empty($label['specification']))
+                                            <div class="spec">{{ $label['specification'] }}</div>
+                                        @endif
+                                    </div>
+                                </div>
+                                <div class="foot">
+                                    <span>{{ $label['meta'] !== '' ? $label['meta'] : 'TJKT' }}</span>
+                                    <span>{{ ! empty($label['factory_sn']) ? 'S/N: '.$label['factory_sn'] : ($label['asset_code'] ?? '') }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    @endforeach
                 </div>
-            @endforeach
+            @else
+                <div class="thermal-list">
+                    @foreach ($labels as $label)
+                        @php
+                            $qrSvg = (string) QrCode::size($qrSize)->margin(0)->errorCorrection('M')->generate($label['code']);
+                            $shortCode = preg_replace('/^TJKT-/', '', (string) $label['code']);
+                        @endphp
+                        <div class="thermal-item-wrap" data-label-id="{{ $label['id'] }}">
+                            <div class="no-print">
+                                @if (empty($label['printed_at']))
+                                    <span class="sticker-status-pill pill-new js-badge">BARU · BELUM DICETAK</span>
+                                @else
+                                    <span class="sticker-status-pill pill-done js-badge">
+                                        Tercetak {{ $label['print_count'] }}× ({{ $label['printed_at']->format('d M Y') }})
+                                    </span>
+                                @endif
+                            </div>
+
+                            @if ($activePreset === 'micro_12x12')
+                                <div class="label-micro_12x12">
+                                    <div class="qr-svg">{!! $qrSvg !!}</div>
+                                    <div class="micro-code">{{ $shortCode }}</div>
+                                </div>
+                            @elseif ($activePreset === 'mini_12')
+                                <div class="label-mini_12">
+                                    <div class="qr-svg">{!! $qrSvg !!}</div>
+                                    <div class="txt">
+                                        <div class="hdr">INVENTARIS TJKT</div>
+                                        <div class="code">{{ $label['code'] }}</div>
+                                        <div class="name">{{ $label['name'] }}</div>
+                                    </div>
+                                </div>
+                            @elseif ($activePreset === 'flag_12')
+                                <div class="label-flag_12">
+                                    <div class="flag-wing">
+                                        <div class="qr-svg">{!! $qrSvg !!}</div>
+                                        <div class="txt">
+                                            <div class="hdr">INVENTARIS TJKT</div>
+                                            <div class="code">{{ $label['code'] }}</div>
+                                            <div class="name">{{ $label['name'] }}</div>
+                                        </div>
+                                    </div>
+                                    <div class="flag-fold">LIPAT KABEL</div>
+                                    <div class="flag-wing">
+                                        <div class="txt" style="text-align: right;">
+                                            <div class="hdr">INVENTARIS TJKT</div>
+                                            <div class="code">{{ $label['code'] }}</div>
+                                            <div class="name">{{ $label['name'] }}</div>
+                                        </div>
+                                        <div class="qr-svg">{!! $qrSvg !!}</div>
+                                    </div>
+                                </div>
+                            @else
+                                {{-- medium_24 (55x24mm — Pita 24mm Putih/Kuning) --}}
+                                <div class="label-medium_24">
+                                    <div class="qr-svg">{!! $qrSvg !!}</div>
+                                    <div class="txt">
+                                        <div class="hdr">INVENTARIS TJKT{{ ! empty($label['is_critical']) ? ' ★' : '' }}</div>
+                                        <div class="code">{{ $label['code'] }}</div>
+                                        <div class="name">{{ $label['name'] }}</div>
+                                        @if ($label['meta'] !== '')
+                                            <div class="meta">{{ $label['meta'] }}</div>
+                                        @endif
+                                    </div>
+                                </div>
+                            @endif
+                        </div>
+                    @endforeach
+                </div>
+            @endif
         </div>
     @endif
 
     <script>
         const LATEKAJE_PRINT_IDS = @json($labelIds);
         const LATEKAJE_PRINT_TYPE = @json($printType);
+        const LATEKAJE_PRESET = @json($activePreset);
         const LATEKAJE_MARK_URL = @json(route('print.qr.mark-printed'));
+        const CAL_STORAGE_KEY = 'latekaje_print_cal_' + LATEKAJE_PRESET;
+
+        function loadCalibration() {
+            try {
+                const raw = localStorage.getItem(CAL_STORAGE_KEY);
+                if (!raw) return;
+                const saved = JSON.parse(raw);
+                if (saved.top !== undefined) document.getElementById('cal-top').value = saved.top;
+                if (saved.left !== undefined) document.getElementById('cal-left').value = saved.left;
+                if (saved.scale !== undefined) document.getElementById('cal-scale').value = saved.scale;
+                applyCalibration(false);
+            } catch (e) {}
+        }
+
+        function applyCalibration(persist = true) {
+            const top = parseFloat(document.getElementById('cal-top')?.value || '0') || 0;
+            const left = parseFloat(document.getElementById('cal-left')?.value || '0') || 0;
+            const scale = Math.max(85, Math.min(115, parseFloat(document.getElementById('cal-scale')?.value || '100') || 100));
+
+            document.documentElement.style.setProperty('--cal-top', top + 'mm');
+            document.documentElement.style.setProperty('--cal-left', left + 'mm');
+            document.documentElement.style.setProperty('--cal-scale', (scale / 100).toString());
+
+            if (persist) {
+                try {
+                    localStorage.setItem(CAL_STORAGE_KEY, JSON.stringify({ top, left, scale }));
+                } catch (e) {}
+            }
+        }
+
+        function resetCalibration() {
+            document.getElementById('cal-top').value = '0';
+            document.getElementById('cal-left').value = '0';
+            document.getElementById('cal-scale').value = '100';
+            applyCalibration(true);
+        }
 
         async function sendMarkPrinted() {
             if (!LATEKAJE_PRINT_IDS.length) return false;
@@ -210,7 +759,7 @@
                     banner.classList.add('is-visible');
                 }
                 document.querySelectorAll('.js-badge').forEach((el) => {
-                    el.className = 'sticker-badge sticker-badge--done js-badge';
+                    el.className = 'sticker-status-pill pill-done js-badge';
                     el.textContent = 'Sudah Dicetak (' + data.printed_at + ')';
                 });
                 return true;
@@ -227,6 +776,8 @@
         async function markPrintedOnly() {
             await sendMarkPrinted();
         }
+
+        loadCalibration();
     </script>
 </body>
 </html>

@@ -11,6 +11,8 @@ Route::middleware(['auth', EnsureUserIsActive::class])->group(function (): void 
     Route::get('/print-qr', PrintQrController::class)->name('print.qr');
     Route::post('/print-qr/mark-printed', [PrintQrController::class, 'markPrinted'])
         ->name('print.qr.mark-printed');
+    Route::get('/print-qr/export-ptouch', [PrintQrController::class, 'exportPtouchCsv'])
+        ->name('print.qr.export-ptouch');
 
     Route::get('/files/loans/{loan}/return-photo', [PrivateFileController::class, 'loanReturnPhoto'])
         ->name('files.loans.return-photo');
