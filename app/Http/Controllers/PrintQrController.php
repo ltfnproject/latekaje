@@ -12,6 +12,9 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class PrintQrController extends Controller
@@ -20,32 +23,56 @@ class PrintQrController extends Controller
         'micro_12x12' => [
             'label' => 'XXS · Micro 12×12mm',
             'tape' => 'Pita TZe 12mm Putih',
+            'dims' => '12×12mm',
             'paper_hint' => 'Ukuran kustom 12×12mm · Margin: None · Auto-Cut ON (Sensor Mini / DHT / Soil)',
             'qr_size' => 34,
         ],
         'mini_12' => [
             'label' => 'XS · Mini 12mm',
             'tape' => 'Pita TZe 12mm Putih',
+            'dims' => '40×12mm',
             'paper_hint' => 'Ukuran kustom 40×12mm (Landscape) · Margin: None · Auto-Cut ON (ESP / RAM / Tools)',
             'qr_size' => 36,
         ],
         'flag_12' => [
             'label' => 'CF · Cable Flag 12mm',
             'tape' => 'Pita TZe 12mm Kuning',
+            'dims' => '72×12mm',
             'paper_hint' => 'Ukuran kustom 72×12mm (Landscape) · Margin: None · Auto-Cut ON (Lipat melingkar di kabel/adaptor)',
             'qr_size' => 34,
         ],
         'medium_24' => [
             'label' => 'M · Sedang 24mm',
             'tape' => 'Pita TZe 24mm Putih / Kuning',
+            'dims' => '55×24mm',
             'paper_hint' => 'Ukuran kustom 55×24mm (Landscape) · Margin: None · Auto-Cut ON (Router / Switch / Splicer / Box)',
             'qr_size' => 68,
         ],
         'detail_a4' => [
-            'label' => 'L/XL · Detail A4 / A3',
-            'tape' => 'Kertas Stiker A4 / A3',
-            'paper_hint' => 'Kertas A4 (3 kolom) atau A3 (4 kolom) · Margin: Minimum · Atur Offset jika pakai lembar sisa',
+            'label' => 'L/XL · Detail Lembar',
+            'tape' => 'Kertas Stiker A4 / F4 / A3',
+            'dims' => 'Kartu Detail',
+            'paper_hint' => 'Kertas A4 / F4 (3 kolom) atau A3 (4 kolom) · Margin: Minimum · Atur Offset jika pakai lembar sisa',
             'qr_size' => 86,
+        ],
+    ];
+
+    public const OUTPUTS = [
+        'thermal' => [
+            'label' => 'Pita Thermal PT-P750W',
+            'page_size' => null,
+        ],
+        'a4' => [
+            'label' => 'Kertas A4',
+            'page_size' => '210mm 297mm',
+        ],
+        'f4' => [
+            'label' => 'Kertas F4 / Folio',
+            'page_size' => '215mm 330mm',
+        ],
+        'a3' => [
+            'label' => 'Kertas A3',
+            'page_size' => '297mm 420mm',
         ],
     ];
 
@@ -59,16 +86,31 @@ class PrintQrController extends Controller
         $labels = $resolved['labels'];
         $requestedPreset = (string) $request->query('preset', 'auto');
         $activePreset = $this->resolvePreset($requestedPreset, $labels);
-        $paper = $request->query('paper') === 'a3' ? 'a3' : 'a4';
-        $offset = max(0, min(40, (int) $request->query('offset', 0)));
+
+        // Dukungan parameter lama (?paper=a3/a4/f4) & parameter baru (?output=thermal|a4|f4|a3)
+        $rawOutput = (string) $request->query('output', '');
+        if ($rawOutput === '' && $request->filled('paper')) {
+            $rawOutput = (string) $request->query('paper');
+        }
+        $activeOutput = array_key_exists($rawOutput, self::OUTPUTS)
+            ? $rawOutput
+            : ($activePreset === 'detail_a4' ? 'a4' : 'thermal');
+
+        // Preset Detail L/XL selalu dicetak di kertas lembar (A4/F4/A3)
+        if ($activePreset === 'detail_a4' && $activeOutput === 'thermal') {
+            $activeOutput = 'a4';
+        }
+
+        $offset = max(0, min(60, (int) $request->query('offset', 0)));
 
         ActivityLogger::log(
             'qr.printed',
-            "Membuka pratinjau cetak QR ({$labels->count()} ".($resolved['printType'] === 'bulk' ? 'wadah' : 'unit')." — {$resolved['contextLabel']} · {$activePreset})",
+            "Membuka pratinjau cetak QR ({$labels->count()} ".($resolved['printType'] === 'bulk' ? 'wadah' : 'unit')." — {$resolved['contextLabel']} · {$activePreset} · {$activeOutput})",
             $resolved['procurement'],
             [
                 'type' => $resolved['printType'],
                 'preset' => $activePreset,
+                'output' => $activeOutput,
                 'ids' => $resolved['idsParam'] === 'all' ? 'all' : $labels->pluck('id')->all(),
                 'procurement_id' => $resolved['procurement']?->id,
                 'count' => $labels->count(),
@@ -84,11 +126,12 @@ class PrintQrController extends Controller
             'activeMode' => $resolved['activeMode'],
             'procurement' => $resolved['procurement'],
             'presets' => self::PRESETS,
+            'outputs' => self::OUTPUTS,
             'activePreset' => $activePreset,
             'requestedPreset' => $requestedPreset,
-            'paper' => $paper,
+            'activeOutput' => $activeOutput,
             'offset' => $offset,
-            'queryBase' => $request->except(['preset', 'paper', 'offset']),
+            'queryBase' => $request->except(['preset', 'output', 'paper', 'offset']),
         ]);
     }
 
@@ -104,7 +147,7 @@ class PrintQrController extends Controller
             'qr.ptouch_exported',
             "Mengekspor CSV Brother P-touch Editor ({$labels->count()} label — {$resolved['contextLabel']})",
             $resolved['procurement'],
-            ['type' => $resolved['printType'], 'count' => $labels->count()],
+            ['type' => $resolved['printType'], 'format' => 'csv', 'count' => $labels->count()],
         );
 
         $filename = 'ptouch-tjkt-'.now()->format('Ymd-His').'.csv';
@@ -113,37 +156,63 @@ class PrintQrController extends Controller
             $out = fopen('php://output', 'w');
             // UTF-8 BOM untuk kompatibilitas Windows & Brother P-touch Editor
             fwrite($out, "\xEF\xBB\xBF");
-            fputcsv($out, [
-                'QR_CODE',
-                'NAMA_ALAT',
-                'KODE_ASET',
-                'KATEGORI',
-                'SPESIFIKASI',
-                'SN_PABRIK',
-                'LOKASI',
-                'TITIK_SIMPAN',
-                'PRESET_QR',
-                'HEADER',
-            ]);
+            fputcsv($out, self::ptouchHeaders());
 
             foreach ($labels as $label) {
-                fputcsv($out, [
-                    self::csvSafe((string) $label['code']),
-                    self::csvSafe((string) $label['name']),
-                    self::csvSafe((string) ($label['asset_code'] ?? '')),
-                    self::csvSafe((string) ($label['category_code'] ?? '')),
-                    self::csvSafe((string) ($label['specification'] ?? '')),
-                    self::csvSafe((string) ($label['factory_sn'] ?? '')),
-                    self::csvSafe((string) ($label['location'] ?? '')),
-                    self::csvSafe((string) ($label['storage_spot'] ?? '')),
-                    self::csvSafe((string) ($label['default_preset'] ?? 'medium_24')),
-                    'INVENTARIS TJKT',
-                ]);
+                fputcsv($out, self::ptouchRow($label));
             }
 
             fclose($out);
         }, $filename, [
             'Content-Type' => 'text/csv; charset=UTF-8',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
+
+    public function exportPtouchXlsx(Request $request): StreamedResponse
+    {
+        abort_unless(Gate::allows('print', AssetItem::class), 403);
+
+        $resolved = $this->resolveLabels($request);
+        /** @var Collection<int, array<string, mixed>> $labels */
+        $labels = $resolved['labels'];
+
+        ActivityLogger::log(
+            'qr.ptouch_exported',
+            "Mengekspor Excel (.xlsx) Brother P-touch Editor ({$labels->count()} label — {$resolved['contextLabel']})",
+            $resolved['procurement'],
+            ['type' => $resolved['printType'], 'format' => 'xlsx', 'count' => $labels->count()],
+        );
+
+        $spreadsheet = new Spreadsheet;
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('DATA_PTOUCH');
+
+        $headers = self::ptouchHeaders();
+        foreach ($headers as $colIndex => $header) {
+            $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIndex + 1);
+            $sheet->setCellValueExplicit("{$colLetter}1", $header, DataType::TYPE_STRING);
+            $sheet->getStyle("{$colLetter}1")->getFont()->setBold(true);
+            $sheet->getColumnDimension($colLetter)->setAutoSize(true);
+        }
+
+        $rowNum = 2;
+        foreach ($labels as $label) {
+            foreach (self::ptouchRow($label) as $colIndex => $val) {
+                $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIndex + 1);
+                $sheet->setCellValueExplicit("{$colLetter}{$rowNum}", $val, DataType::TYPE_STRING);
+            }
+            $rowNum++;
+        }
+
+        $filename = 'ptouch-tjkt-'.now()->format('Ymd-His').'.xlsx';
+
+        return response()->streamDownload(function () use ($spreadsheet): void {
+            $writer = new Xlsx($spreadsheet);
+            $writer->save('php://output');
+            $spreadsheet->disconnectWorksheets();
+        }, $filename, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             'X-Content-Type-Options' => 'nosniff',
         ]);
     }
@@ -193,6 +262,45 @@ class PrintQrController extends Controller
             'updated' => $updated,
             'printed_at' => $now->format('d M Y H:i'),
         ]);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function ptouchHeaders(): array
+    {
+        return [
+            'QR_CODE',
+            'NAMA_ALAT',
+            'KODE_ASET',
+            'KATEGORI',
+            'SPESIFIKASI',
+            'SN_PABRIK',
+            'LOKASI',
+            'TITIK_SIMPAN',
+            'PRESET_QR',
+            'HEADER',
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $label
+     * @return list<string>
+     */
+    private static function ptouchRow(array $label): array
+    {
+        return [
+            self::csvSafe((string) $label['code']),
+            self::csvSafe((string) $label['name']),
+            self::csvSafe((string) ($label['asset_code'] ?? '')),
+            self::csvSafe((string) ($label['category_code'] ?? '')),
+            self::csvSafe((string) ($label['specification'] ?? '')),
+            self::csvSafe((string) ($label['factory_sn'] ?? '')),
+            self::csvSafe((string) ($label['location'] ?? '')),
+            self::csvSafe((string) ($label['storage_spot'] ?? '')),
+            self::csvSafe((string) ($label['default_preset'] ?? 'medium_24')),
+            'INVENTARIS TJKT',
+        ];
     }
 
     /**
@@ -339,7 +447,6 @@ class PrintQrController extends Controller
             return 'medium_24';
         }
 
-        // Pilih preset mayoritas dari default_qr_preset aset yang sedang dicetak
         $dominant = $labels
             ->pluck('default_preset')
             ->filter(fn ($p) => is_string($p) && array_key_exists($p, self::PRESETS))
@@ -352,7 +459,7 @@ class PrintQrController extends Controller
     }
 
     /**
-     * Cegah CSV Formula Injection saat dibuka di Excel / Brother P-touch Editor.
+     * Cegah CSV/Excel Formula Injection saat dibuka di Excel / Brother P-touch Editor.
      */
     private static function csvSafe(string $value): string
     {

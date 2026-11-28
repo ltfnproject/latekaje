@@ -13,6 +13,8 @@ Route::middleware(['auth', EnsureUserIsActive::class])->group(function (): void 
         ->name('print.qr.mark-printed');
     Route::get('/print-qr/export-ptouch', [PrintQrController::class, 'exportPtouchCsv'])
         ->name('print.qr.export-ptouch');
+    Route::get('/print-qr/export-ptouch-xlsx', [PrintQrController::class, 'exportPtouchXlsx'])
+        ->name('print.qr.export-ptouch-xlsx');
 
     Route::get('/files/loans/{loan}/return-photo', [PrivateFileController::class, 'loanReturnPhoto'])
         ->name('files.loans.return-photo');

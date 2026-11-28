@@ -6,18 +6,32 @@
     <title>{{ __('units.print_title') }} — {{ $contextLabel }}</title>
     @php
         $presetMeta = $presets[$activePreset] ?? $presets['medium_24'];
+        $outputMeta = $outputs[$activeOutput] ?? $outputs['thermal'];
         $qrSize = (int) ($presetMeta['qr_size'] ?? 68);
-        $isThermal = $activePreset !== 'detail_a4';
-        $pageSizeCss = match ($activePreset) {
-            'micro_12x12' => '12mm 12mm',
-            'mini_12' => '40mm 12mm',
-            'flag_12' => '72mm 12mm',
-            'medium_24' => '55mm 24mm',
-            default => $paper === 'a3' ? 'A3 portrait' : 'A4 portrait',
+        $isSheetMode = $activeOutput !== 'thermal';
+        $isThermalCutMode = ! $isSheetMode && $activePreset !== 'detail_a4';
+
+        $pageSizeCss = $isSheetMode
+            ? ($outputMeta['page_size'] ?? '210mm 297mm')
+            : match ($activePreset) {
+                'micro_12x12' => '12mm 12mm',
+                'mini_12' => '40mm 12mm',
+                'flag_12' => '72mm 12mm',
+                default => '55mm 24mm',
+            };
+
+        $slotDimsCss = match ($activePreset) {
+            'micro_12x12' => 'width: 12mm; height: 12mm;',
+            'mini_12' => 'width: 40mm; height: 12mm;',
+            'flag_12' => 'width: 72mm; height: 12mm;',
+            'medium_24' => 'width: 55mm; height: 24mm;',
+            default => 'min-height: 36mm;',
         };
+
         $labelIds = $labels->pluck('id')->values()->all();
         $unprintedInView = $labels->filter(fn (array $l) => empty($l['printed_at']))->count();
-        $ptouchExportUrl = route('print.qr.export-ptouch', request()->query());
+        $ptouchCsvUrl = route('print.qr.export-ptouch', request()->query());
+        $ptouchXlsxUrl = route('print.qr.export-ptouch-xlsx', request()->query());
     @endphp
     <style>
         :root {
@@ -35,7 +49,7 @@
 
         /* ================= TOOLBAR LAYAR (TIDAK IKUT TERCETAK) ================= */
         .toolbar-wrap {
-            max-width: 1160px;
+            max-width: 1180px;
             margin: 0 auto 18px;
             display: flex;
             flex-direction: column;
@@ -68,6 +82,7 @@
             padding: 10px 14px;
         }
         .preset-pills { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+        .bar-label { font-size: 12px; font-weight: 700; color: #334155; margin-right: 4px; }
         .btn {
             display: inline-flex;
             align-items: center;
@@ -90,7 +105,10 @@
         .btn-success:hover { background: #047857; }
         .btn-dark { background: #0f172a; border-color: #0f172a; color: #ffffff; }
         .btn-dark:hover { background: #1e293b; }
+        .btn-blue { background: #1d4ed8; border-color: #1e40af; color: #ffffff; }
+        .btn-blue:hover { background: #1e40af; }
         .btn-tab-active { background: #fef3c7; border-color: #f59e0b; color: #92400e; }
+        .btn-output-active { background: #dbeafe; border-color: #3b82f6; color: #1e40af; }
         .tape-guide {
             background: #fffbeb;
             border: 1px solid #fcd34d;
@@ -104,6 +122,11 @@
             justify-content: space-between;
             gap: 10px;
         }
+        .tape-guide--sheet {
+            background: #eff6ff;
+            border-color: #93c5fd;
+            color: #1e3a8a;
+        }
         .cal-controls {
             display: flex;
             flex-wrap: wrap;
@@ -113,9 +136,8 @@
             color: #334155;
         }
         .cal-controls label { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; }
-        .cal-controls input[type="number"],
-        .cal-controls select {
-            width: 68px;
+        .cal-controls input[type="number"] {
+            width: 64px;
             padding: 4px 6px;
             border: 1px solid #cbd5e1;
             border-radius: 6px;
@@ -154,9 +176,9 @@
             color: #475569;
         }
 
-        /* ================= PRATINJAU THERMAL & A4/A3 (100% MONOKROM #000000) ================= */
+        /* ================= PRATINJAU THERMAL & KERTAS LEMBAR (100% MONOKROM #000000) ================= */
         .preview-stage {
-            max-width: 1160px;
+            max-width: 1180px;
             margin: 0 auto;
         }
         .thermal-list {
@@ -173,6 +195,38 @@
             padding: 8px;
             border-radius: 10px;
             border: 1px solid #cbd5e1;
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+        .ptouch-sheet-frame {
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-radius: 12px;
+            padding: 8mm;
+            box-shadow: 0 2px 6px rgba(15, 23, 42, 0.06);
+        }
+        .ptouch-sheet-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 2.5mm;
+            align-items: flex-start;
+            align-content: flex-start;
+        }
+        .ptouch-sheet-item {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+        .ptouch-slot-empty {
+            {{ $slotDimsCss }}
+            border: 0.25mm dashed #cbd5e1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 9px;
+            color: #94a3b8;
         }
         .qr-svg svg {
             display: block;
@@ -313,10 +367,10 @@
             text-overflow: ellipsis;
         }
 
-        /* 5. L / XL DETAIL A4 / A3 (Grid Stiker dengan Offset Slot) */
+        /* 5. L / XL DETAIL A4 / F4 / A3 */
         .sheet-grid {
             display: grid;
-            grid-template-columns: repeat({{ $paper === 'a3' ? 4 : 3 }}, 1fr);
+            grid-template-columns: repeat({{ $activeOutput === 'a3' ? 4 : 3 }}, 1fr);
             gap: 4mm;
             background: #ffffff;
             padding: 6mm;
@@ -400,10 +454,10 @@
             gap: 4px;
         }
 
-        /* ================= PRINT MEDIA RULES (THERMAL & A4/A3) ================= */
+        /* ================= PRINT MEDIA RULES ================= */
         @page {
             size: {{ $pageSizeCss }};
-            margin: {{ $isThermal ? '0mm' : '8mm' }};
+            margin: {{ $isThermalCutMode ? '0mm' : '8mm' }};
         }
         @media print {
             body {
@@ -421,7 +475,8 @@
                 transform: scale(var(--cal-scale));
                 transform-origin: top left;
             }
-            @if ($isThermal)
+            @if ($isThermalCutMode)
+                /* Mode Pita Thermal PT-P750W: 1 stiker = 1 halaman potong otomatis (auto-cut) */
                 .thermal-list {
                     display: block;
                     gap: 0;
@@ -440,11 +495,15 @@
                     break-after: auto;
                 }
             @else
+                /* Mode Kertas Biasa / Stiker Lembar (A4 / F4 / A3): susun rapat hemat kertas */
+                .ptouch-sheet-frame,
                 .sheet-grid {
                     border: none;
                     border-radius: 0;
                     padding: 0;
+                    box-shadow: none;
                 }
+                .ptouch-slot-empty,
                 .sheet-slot-empty {
                     border: none;
                     color: transparent;
@@ -465,25 +524,25 @@
 
             <div class="toolbar-actions">
                 @if ($printType === 'bulk')
-                    <a href="{{ route('print.qr', ['type' => 'bulk', 'ids' => 'unprinted', 'preset' => $requestedPreset]) }}"
+                    <a href="{{ route('print.qr', ['type' => 'bulk', 'ids' => 'unprinted', 'preset' => $requestedPreset, 'output' => $activeOutput]) }}"
                        class="btn {{ $activeMode === 'unprinted' ? 'btn-tab-active' : '' }}">
                         Belum Dicetak ({{ $unprintedTotal }})
                     </a>
-                    <a href="{{ route('print.qr', ['type' => 'bulk', 'ids' => 'all', 'preset' => $requestedPreset]) }}"
+                    <a href="{{ route('print.qr', ['type' => 'bulk', 'ids' => 'all', 'preset' => $requestedPreset, 'output' => $activeOutput]) }}"
                        class="btn {{ $activeMode === 'all' ? 'btn-tab-active' : '' }}">
                         Semua Wadah
                     </a>
                 @else
-                    <a href="{{ route('print.qr', ['ids' => 'unprinted', 'preset' => $requestedPreset]) }}"
+                    <a href="{{ route('print.qr', ['ids' => 'unprinted', 'preset' => $requestedPreset, 'output' => $activeOutput]) }}"
                        class="btn {{ $activeMode === 'unprinted' ? 'btn-tab-active' : '' }}">
                         Belum Dicetak ({{ $unprintedTotal }})
                     </a>
-                    <a href="{{ route('print.qr', ['ids' => 'all', 'preset' => $requestedPreset]) }}"
+                    <a href="{{ route('print.qr', ['ids' => 'all', 'preset' => $requestedPreset, 'output' => $activeOutput]) }}"
                        class="btn {{ $activeMode === 'all' ? 'btn-tab-active' : '' }}">
                         Semua Unit
                     </a>
                     @if ($procurement)
-                        <a href="{{ route('print.qr', ['procurement_id' => $procurement->id, 'only_unprinted' => 1, 'preset' => $requestedPreset]) }}"
+                        <a href="{{ route('print.qr', ['procurement_id' => $procurement->id, 'only_unprinted' => 1, 'preset' => $requestedPreset, 'output' => $activeOutput]) }}"
                            class="btn">
                             Hanya Belum Dicetak di Batch Ini
                         </a>
@@ -491,8 +550,11 @@
                 @endif
 
                 @if ($labels->isNotEmpty())
-                    <a href="{{ $ptouchExportUrl }}" class="btn btn-dark" title="Unduh CSV siap impor untuk Brother P-touch Editor (Auto-Cut massal)">
-                        ⬇ CSV P-touch Editor
+                    <a href="{{ $ptouchXlsxUrl }}" class="btn btn-blue" title="Unduh Excel (.xlsx) siap Database Connect di Brother P-touch Editor (rekomendasi Windows)">
+                        ⬇ Excel P-touch (.xlsx)
+                    </a>
+                    <a href="{{ $ptouchCsvUrl }}" class="btn btn-dark" title="Unduh CSV UTF-8 siap impor Brother P-touch Editor">
+                        ⬇ CSV P-touch (.csv)
                     </a>
                     <button type="button" class="btn btn-primary" onclick="printAndMark()">
                         🖨️ {{ __('units.print_and_mark') }}
@@ -509,34 +571,46 @@
 
         <div class="preset-bar">
             <div class="preset-pills">
-                <span style="font-size: 12px; font-weight: 700; color: #334155; margin-right: 4px;">Preset Stiker:</span>
+                <span class="bar-label">Format Stiker:</span>
                 @foreach ($presets as $key => $meta)
-                    <a href="{{ route('print.qr', array_merge($queryBase, ['preset' => $key, 'paper' => $paper, 'offset' => $offset])) }}"
+                    @php
+                        $nextOutput = ($key === 'detail_a4' && $activeOutput === 'thermal') ? 'a4' : $activeOutput;
+                    @endphp
+                    <a href="{{ route('print.qr', array_merge($queryBase, ['preset' => $key, 'output' => $nextOutput, 'offset' => $offset])) }}"
                        class="btn {{ $activePreset === $key ? 'btn-tab-active' : '' }}">
                         {{ $meta['label'] }}
                     </a>
                 @endforeach
             </div>
+        </div>
+
+        <div class="preset-bar">
+            <div class="preset-pills">
+                <span class="bar-label">Media Cetak:</span>
+                @foreach ($outputs as $outKey => $outMeta)
+                    @if ($activePreset === 'detail_a4' && $outKey === 'thermal')
+                        @continue
+                    @endif
+                    <a href="{{ route('print.qr', array_merge($queryBase, ['preset' => $activePreset, 'output' => $outKey, 'offset' => $outKey === 'thermal' ? 0 : $offset])) }}"
+                       class="btn {{ $activeOutput === $outKey ? 'btn-output-active' : '' }}">
+                        {{ $outMeta['label'] }}
+                    </a>
+                @endforeach
+            </div>
 
             <div class="cal-controls">
-                @if ($activePreset === 'detail_a4')
+                @if ($isSheetMode)
                     <form method="GET" action="{{ route('print.qr') }}" style="display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;">
                         @foreach ($queryBase as $k => $v)
                             @if (! is_array($v))
                                 <input type="hidden" name="{{ $k }}" value="{{ $v }}">
                             @endif
                         @endforeach
-                        <input type="hidden" name="preset" value="detail_a4">
-                        <label>
-                            Kertas:
-                            <select name="paper" onchange="this.form.submit()">
-                                <option value="a4" {{ $paper === 'a4' ? 'selected' : '' }}>A4 (3 kol)</option>
-                                <option value="a3" {{ $paper === 'a3' ? 'selected' : '' }}>A3 (4 kol)</option>
-                            </select>
-                        </label>
+                        <input type="hidden" name="preset" value="{{ $activePreset }}">
+                        <input type="hidden" name="output" value="{{ $activeOutput }}">
                         <label title="Lewati N slot kosong di awal lembar stiker bekas">
                             Offset Slot:
-                            <input type="number" name="offset" min="0" max="40" value="{{ $offset }}" onchange="this.form.submit()">
+                            <input type="number" name="offset" min="0" max="60" value="{{ $offset }}" onchange="this.form.submit()">
                         </label>
                     </form>
                 @endif
@@ -557,12 +631,19 @@
             </div>
         </div>
 
-        <div class="tape-guide">
+        <div class="tape-guide {{ $isSheetMode ? 'tape-guide--sheet' : '' }}">
+            @if ($isSheetMode)
+                <div>
+                    <strong>Mode Kertas Lembar ({{ $outputMeta['label'] }} · {{ $outputMeta['page_size'] }}):</strong>
+                    Format <strong>{{ $presetMeta['label'] }} ({{ $presetMeta['dims'] }})</strong> disusun rapat dalam 1 lembar kertas biasa/stiker — hemat kertas, tinggal gunting! Di dialog Print pilih kertas <strong>{{ $outputMeta['label'] }}</strong> & Skala <strong>100%</strong>.
+                </div>
+            @else
+                <div>
+                    <strong>Mode Pita Thermal ({{ $presetMeta['tape'] }}):</strong> {{ $presetMeta['paper_hint'] }}
+                </div>
+            @endif
             <div>
-                <strong>Panduan Printer ({{ $presetMeta['tape'] }}):</strong> {{ $presetMeta['paper_hint'] }}
-            </div>
-            <div>
-                Mode <strong>Monokrom #000000</strong> · Header: <strong>INVENTARIS TJKT</strong>
+                <strong>Monokrom #000000</strong> · <strong>INVENTARIS TJKT</strong>
             </div>
         </div>
 
@@ -621,40 +702,37 @@
                     @endforeach
                 </div>
             @else
-                <div class="thermal-list">
-                    @foreach ($labels as $label)
-                        @php
-                            $qrSvg = (string) QrCode::size($qrSize)->margin(0)->errorCorrection('M')->generate($label['code']);
-                            $shortCode = preg_replace('/^TJKT-/', '', (string) $label['code']);
-                        @endphp
-                        <div class="thermal-item-wrap" data-label-id="{{ $label['id'] }}">
-                            <div class="no-print">
-                                @if (empty($label['printed_at']))
-                                    <span class="sticker-status-pill pill-new js-badge">BARU · BELUM DICETAK</span>
-                                @else
-                                    <span class="sticker-status-pill pill-done js-badge">
-                                        Tercetak {{ $label['print_count'] }}× ({{ $label['printed_at']->format('d M Y') }})
-                                    </span>
-                                @endif
-                            </div>
+                <div class="{{ $isSheetMode ? 'ptouch-sheet-frame' : '' }}">
+                    <div class="{{ $isSheetMode ? 'ptouch-sheet-grid' : 'thermal-list' }}">
+                        @if ($isSheetMode)
+                            @for ($i = 0; $i < $offset; $i++)
+                                <div class="ptouch-slot-empty">#{{ $i + 1 }}</div>
+                            @endfor
+                        @endif
 
-                            @if ($activePreset === 'micro_12x12')
-                                <div class="label-micro_12x12">
-                                    <div class="qr-svg">{!! $qrSvg !!}</div>
-                                    <div class="micro-code">{{ $shortCode }}</div>
+                        @foreach ($labels as $label)
+                            @php
+                                $qrSvg = (string) QrCode::size($qrSize)->margin(0)->errorCorrection('M')->generate($label['code']);
+                                $shortCode = preg_replace('/^TJKT-/', '', (string) $label['code']);
+                            @endphp
+                            <div class="{{ $isSheetMode ? 'ptouch-sheet-item' : 'thermal-item-wrap' }}" data-label-id="{{ $label['id'] }}">
+                                <div class="no-print">
+                                    @if (empty($label['printed_at']))
+                                        <span class="sticker-status-pill pill-new js-badge">BARU · BELUM DICETAK</span>
+                                    @else
+                                        <span class="sticker-status-pill pill-done js-badge">
+                                            Tercetak {{ $label['print_count'] }}× ({{ $label['printed_at']->format('d M Y') }})
+                                        </span>
+                                    @endif
                                 </div>
-                            @elseif ($activePreset === 'mini_12')
-                                <div class="label-mini_12">
-                                    <div class="qr-svg">{!! $qrSvg !!}</div>
-                                    <div class="txt">
-                                        <div class="hdr">INVENTARIS TJKT</div>
-                                        <div class="code">{{ $label['code'] }}</div>
-                                        <div class="name">{{ $label['name'] }}</div>
+
+                                @if ($activePreset === 'micro_12x12')
+                                    <div class="label-micro_12x12">
+                                        <div class="qr-svg">{!! $qrSvg !!}</div>
+                                        <div class="micro-code">{{ $shortCode }}</div>
                                     </div>
-                                </div>
-                            @elseif ($activePreset === 'flag_12')
-                                <div class="label-flag_12">
-                                    <div class="flag-wing">
+                                @elseif ($activePreset === 'mini_12')
+                                    <div class="label-mini_12">
                                         <div class="qr-svg">{!! $qrSvg !!}</div>
                                         <div class="txt">
                                             <div class="hdr">INVENTARIS TJKT</div>
@@ -662,32 +740,42 @@
                                             <div class="name">{{ $label['name'] }}</div>
                                         </div>
                                     </div>
-                                    <div class="flag-fold">LIPAT KABEL</div>
-                                    <div class="flag-wing">
-                                        <div class="txt" style="text-align: right;">
-                                            <div class="hdr">INVENTARIS TJKT</div>
+                                @elseif ($activePreset === 'flag_12')
+                                    <div class="label-flag_12">
+                                        <div class="flag-wing">
+                                            <div class="qr-svg">{!! $qrSvg !!}</div>
+                                            <div class="txt">
+                                                <div class="hdr">INVENTARIS TJKT</div>
+                                                <div class="code">{{ $label['code'] }}</div>
+                                                <div class="name">{{ $label['name'] }}</div>
+                                            </div>
+                                        </div>
+                                        <div class="flag-fold">LIPAT KABEL</div>
+                                        <div class="flag-wing">
+                                            <div class="txt" style="text-align: right;">
+                                                <div class="hdr">INVENTARIS TJKT</div>
+                                                <div class="code">{{ $label['code'] }}</div>
+                                                <div class="name">{{ $label['name'] }}</div>
+                                            </div>
+                                            <div class="qr-svg">{!! $qrSvg !!}</div>
+                                        </div>
+                                    </div>
+                                @else
+                                    <div class="label-medium_24">
+                                        <div class="qr-svg">{!! $qrSvg !!}</div>
+                                        <div class="txt">
+                                            <div class="hdr">INVENTARIS TJKT{{ ! empty($label['is_critical']) ? ' ★' : '' }}</div>
                                             <div class="code">{{ $label['code'] }}</div>
                                             <div class="name">{{ $label['name'] }}</div>
+                                            @if ($label['meta'] !== '')
+                                                <div class="meta">{{ $label['meta'] }}</div>
+                                            @endif
                                         </div>
-                                        <div class="qr-svg">{!! $qrSvg !!}</div>
                                     </div>
-                                </div>
-                            @else
-                                {{-- medium_24 (55x24mm — Pita 24mm Putih/Kuning) --}}
-                                <div class="label-medium_24">
-                                    <div class="qr-svg">{!! $qrSvg !!}</div>
-                                    <div class="txt">
-                                        <div class="hdr">INVENTARIS TJKT{{ ! empty($label['is_critical']) ? ' ★' : '' }}</div>
-                                        <div class="code">{{ $label['code'] }}</div>
-                                        <div class="name">{{ $label['name'] }}</div>
-                                        @if ($label['meta'] !== '')
-                                            <div class="meta">{{ $label['meta'] }}</div>
-                                        @endif
-                                    </div>
-                                </div>
-                            @endif
-                        </div>
-                    @endforeach
+                                @endif
+                            </div>
+                        @endforeach
+                    </div>
                 </div>
             @endif
         </div>
@@ -697,8 +785,9 @@
         const LATEKAJE_PRINT_IDS = @json($labelIds);
         const LATEKAJE_PRINT_TYPE = @json($printType);
         const LATEKAJE_PRESET = @json($activePreset);
+        const LATEKAJE_OUTPUT = @json($activeOutput);
         const LATEKAJE_MARK_URL = @json(route('print.qr.mark-printed'));
-        const CAL_STORAGE_KEY = 'latekaje_print_cal_' + LATEKAJE_PRESET;
+        const CAL_STORAGE_KEY = 'latekaje_print_cal_' + LATEKAJE_PRESET + '_' + LATEKAJE_OUTPUT;
 
         function loadCalibration() {
             try {

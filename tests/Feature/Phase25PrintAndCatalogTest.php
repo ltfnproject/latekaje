@@ -126,14 +126,24 @@ class Phase25PrintAndCatalogTest extends TestCase
                 $res->assertSee('INVENTARIS TJKT');
             }
 
-            // 3. Uji Detail A3 dengan Slot Offset = 4
+            // 3. Uji cetak format P-touch (M · Sedang 24mm) di kertas biasa A4 / F4 / A3 dengan Offset Slot (tanpa page-break per label!)
+            foreach (['a4' => '210mm 297mm', 'f4' => '215mm 330mm', 'a3' => '297mm 420mm'] as $outKey => $expectedSize) {
+                $sheetRes = $this->get('/print-qr?ids='.$unit->id.'&preset=medium_24&output='.$outKey.'&offset=3');
+                $sheetRes->assertOk();
+                $sheetRes->assertSee('size: '.$expectedSize, false);
+                $sheetRes->assertSee('ptouch-sheet-grid', false);
+                $sheetRes->assertSee('ptouch-slot-empty', false);
+                $sheetRes->assertDontSee('break-after: page', false);
+            }
+
+            // 4. Uji Detail A3 dengan Slot Offset = 4
             $this->get('/print-qr?ids='.$unit->id.'&preset=detail_a4&paper=a3&offset=4')
                 ->assertOk()
                 ->assertSee('Slot Kosong #4')
                 ->assertSee('SMK WALISONGO PECANGAAN')
                 ->assertSee('SN-IOT-8801');
 
-            // 4. Uji Export CSV Brother P-touch Editor (UTF-8 + anti CSV Formula Injection)
+            // 5. Uji Export CSV Brother P-touch Editor (UTF-8 + anti CSV Formula Injection)
             $csvRes = $this->get('/print-qr/export-ptouch?ids='.$unit->id);
             $csvRes->assertOk();
             $this->assertStringContainsString('text/csv', (string) $csvRes->headers->get('Content-Type'));
@@ -145,10 +155,33 @@ class Phase25PrintAndCatalogTest extends TestCase
             $this->assertStringContainsString("'=FormulaInject Test Sensor", $csvBody);
             $this->assertStringContainsString('INVENTARIS TJKT', $csvBody);
 
-            // 5. Borrower (users) wajib ditolak 403 untuk Export CSV P-touch
+            // 6. Uji Export Excel (.xlsx) Brother P-touch Editor
+            $xlsxRes = $this->get('/print-qr/export-ptouch-xlsx?ids='.$unit->id);
+            $xlsxRes->assertOk();
+            $this->assertStringContainsString('spreadsheetml.sheet', (string) $xlsxRes->headers->get('Content-Type'));
+            $xlsxRes->assertHeader('X-Content-Type-Options', 'nosniff');
+
+            $tmpXlsx = tempnam(sys_get_temp_dir(), 'ptouch_test_').'.xlsx';
+            file_put_contents($tmpXlsx, $xlsxRes->streamedContent());
+            try {
+                $loaded = \PhpOffice\PhpSpreadsheet\IOFactory::load($tmpXlsx);
+                $sheet = $loaded->getSheetByName('DATA_PTOUCH');
+                $this->assertNotNull($sheet);
+                $this->assertSame('QR_CODE', $sheet->getCell('A1')->getValue());
+                $this->assertSame('TJKT-IOT-8801', $sheet->getCell('A2')->getValue());
+                $this->assertSame("'=FormulaInject Test Sensor", $sheet->getCell('B2')->getValue());
+                $this->assertSame('INVENTARIS TJKT', $sheet->getCell('J2')->getValue());
+            } finally {
+                @unlink($tmpXlsx);
+            }
+
+            // 7. Borrower (users) wajib ditolak 403 untuk Export CSV & Excel P-touch
             $this->flushSession();
             $this->actingAs($borrower)
                 ->get('/print-qr/export-ptouch?ids=all')
+                ->assertForbidden();
+            $this->actingAs($borrower)
+                ->get('/print-qr/export-ptouch-xlsx?ids=all')
                 ->assertForbidden();
         } finally {
             ActivityLog::whereIn('action', ['qr.printed', 'qr.ptouch_exported'])
