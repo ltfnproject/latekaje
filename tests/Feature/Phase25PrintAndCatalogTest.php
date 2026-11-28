@@ -193,4 +193,39 @@ class Phase25PrintAndCatalogTest extends TestCase
             $borrower->delete();
         }
     }
+
+    public function test_asset_catalog_omits_kegunaan_and_defaults_safely(): void
+    {
+        $kkk = User::updateOrCreate(
+            ['email' => 'p25-nokeg-kkk@latekaje.test'],
+            ['name' => 'KKK Uji Katalog', 'password' => 'secret1234', 'role' => 'admin', 'is_active' => true, 'must_change_password' => false],
+        );
+
+        $netCategory = AssetCategory::where('code', 'NET')->firstOrFail();
+        $asset = null;
+
+        try {
+            $asset = Asset::create([
+                'category_id' => $netCategory->id,
+                'kode_aset' => 'TJKT-NET-998',
+                'nama_alat' => 'Router Uji Tanpa Kegunaan',
+                'jenis' => $netCategory->name,
+                'spesifikasi' => '5x Gigabit Ethernet',
+            ]);
+
+            $this->assertSame('umum', $asset->fresh()->kegunaan);
+
+            $this->actingAs($kkk)
+                ->get('/admin/assets/create')
+                ->assertOk()
+                ->assertDontSee('Kegunaan');
+
+            $this->actingAs($kkk)
+                ->get('/admin/assets')
+                ->assertOk();
+        } finally {
+            $asset?->delete();
+            $kkk->delete();
+        }
+    }
 }

@@ -236,16 +236,6 @@ class ProcurementResource extends Resource
                                         ->label('Spesifikasi Lengkap')
                                         ->required()
                                         ->maxLength(255),
-                                    Select::make('kegunaan')
-                                        ->label('Kegunaan')
-                                        ->options([
-                                            'Praktik Siswa' => 'Praktik Siswa',
-                                            'Praktik Guru' => 'Praktik Guru',
-                                            'Ujian/CBT' => 'Ujian/CBT',
-                                            'non_praktik' => 'Non-Praktik / Operasional',
-                                        ])
-                                        ->default('Praktik Siswa')
-                                        ->required(),
                                     Select::make('tracking_mode')
                                         ->label('Mode Pelacakan')
                                         ->options(Asset::trackingModeOptions())

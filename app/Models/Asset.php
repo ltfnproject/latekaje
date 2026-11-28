@@ -56,6 +56,10 @@ class Asset extends Model
             if (blank($asset->kode_aset)) {
                 $asset->kode_aset = AssetCodeGenerator::nextAssetCode($category);
             }
+
+            if (blank($asset->kegunaan)) {
+                $asset->kegunaan = 'umum';
+            }
         });
     }
 

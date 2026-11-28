@@ -76,20 +76,6 @@ class AssetsTable
                     ->falseColor('gray')
                     ->tooltip(fn (Asset $record): string => $record->requires_approval ? 'Wajib ACC KKK / Toolman' : 'Peminjaman normal'),
 
-                TextColumn::make('kegunaan')
-                    ->label(__('assets.usage_label'))
-                    ->badge()
-                    ->toggleable(isToggledHiddenByDefault: true)
-                    ->formatStateUsing(fn (?string $state): string => match ($state) {
-                        'praktik' => '🛠️ '.(__('assets.usage_option_practice')),
-                        'non_praktik' => '📋 '.(__('assets.usage_option_non_practice')),
-                        'Praktik Siswa' => '🎓 '.(__('assets.usage_option_student')),
-                        'Praktik Guru' => '🧑‍🏫 '.(__('assets.usage_option_teacher')),
-                        'Ujian/CBT' => '💻 '.(__('assets.usage_option_exam')),
-                        'lainnya' => '✨ '.(__('assets.usage_option_other')),
-                        default => (string) $state,
-                    }),
-
                 TextColumn::make('status_kondisi')
                     ->label(__('assets.condition_status_label'))
                     ->html()
