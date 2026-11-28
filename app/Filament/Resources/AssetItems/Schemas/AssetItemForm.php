@@ -154,7 +154,7 @@ class AssetItemForm
                 ->visible(fn (Get $get): bool => in_array($get('status'), [AssetItem::STATUS_INSTALLED, AssetItem::STATUS_RETIRED], true)),
 
             TextInput::make('purchase_price')
-                ->label('Harga Perolehan per Unit (Rahasia KKK)')
+                ->label(__('units.purchase_price_label'))
                 ->numeric()
                 ->prefix('Rp')
                 ->minValue(0)

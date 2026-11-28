@@ -282,7 +282,7 @@ class ConsumableResource extends Resource
                             ->searchable(),
 
                         TextInput::make('unit_price')
-                            ->label('Harga per Satuan (Rp — Rahasia KKK)')
+                            ->label('Harga per Satuan (Rp)')
                             ->numeric()
                             ->prefix('Rp')
                             ->minValue(0)

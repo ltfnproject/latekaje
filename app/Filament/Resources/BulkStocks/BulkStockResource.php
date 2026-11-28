@@ -6,6 +6,7 @@ use App\Filament\Resources\BulkStocks\Pages\CreateBulkStock;
 use App\Filament\Resources\BulkStocks\Pages\EditBulkStock;
 use App\Filament\Resources\BulkStocks\Pages\ListBulkStocks;
 use App\Models\Asset;
+use App\Models\AssetItem;
 use App\Models\BulkStock;
 use App\Models\Location;
 use App\Services\ActivityLogger;
@@ -216,14 +217,58 @@ class BulkStockResource extends Resource
                     ->badge()
                     ->color('info')
                     ->sortable(),
+
+                TextColumn::make('qr_printed_at')
+                    ->label(__('units.print_status_label'))
+                    ->badge()
+                    ->state(fn (BulkStock $record): string => $record->isQrPrinted()
+                        ? __('units.print_status_printed')
+                        : __('units.print_status_unprinted'))
+                    ->color(fn (BulkStock $record): string => $record->isQrPrinted() ? 'success' : 'warning')
+                    ->description(fn (BulkStock $record): ?string => $record->isQrPrinted()
+                        ? $record->qr_printed_at->format('d M Y H:i').' · '.max(1, (int) $record->qr_print_count).'×'
+                        : null)
+                    ->sortable(),
             ])
             ->filters([
+                SelectFilter::make('qr_print_status')
+                    ->label(__('units.print_status_label'))
+                    ->options([
+                        'unprinted' => __('units.print_status_unprinted'),
+                        'printed' => __('units.print_status_printed'),
+                    ])
+                    ->query(function (Builder $query, array $data): Builder {
+                        return match ($data['value'] ?? null) {
+                            'unprinted' => $query->whereNull('qr_printed_at'),
+                            'printed' => $query->whereNotNull('qr_printed_at'),
+                            default => $query,
+                        };
+                    }),
+
                 SelectFilter::make('location_id')
                     ->label(__('units.location_label'))
                     ->relationship('location', 'label')
                     ->preload(),
             ])
+            ->headerActions([
+                Action::make('printUnprintedBulkQr')
+                    ->label('Cetak QR Wadah Belum Dicetak')
+                    ->icon('heroicon-o-printer')
+                    ->color('primary')
+                    ->badge(fn (): int => BulkStock::whereNull('qr_printed_at')->count())
+                    ->badgeColor('warning')
+                    ->visible(fn (): bool => Gate::allows('print', AssetItem::class))
+                    ->url(fn (): string => route('print.qr', ['type' => 'bulk', 'ids' => 'unprinted']))
+                    ->openUrlInNewTab(),
+            ])
             ->recordActions([
+                Action::make('printBulkContainerQr')
+                    ->label(__('units.print_qr'))
+                    ->icon('heroicon-o-qr-code')
+                    ->color(fn (BulkStock $record): string => $record->isQrPrinted() ? 'gray' : 'primary')
+                    ->visible(fn (): bool => Gate::allows('print', AssetItem::class))
+                    ->url(fn (BulkStock $record): string => route('print.qr', ['type' => 'bulk', 'ids' => $record->id]))
+                    ->openUrlInNewTab(),
                 Action::make('adjustStock')
                     ->label('Koreksi Stok')
                     ->icon('heroicon-o-adjustments-horizontal')

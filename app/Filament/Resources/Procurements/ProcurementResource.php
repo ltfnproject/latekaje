@@ -83,7 +83,7 @@ class ProcurementResource extends Resource
             Section::make('Info Batch Barang Masuk')
                 ->description(
                     $strictActive
-                        ? 'Mode Ketat Barang Baru AKTIF — Jenis "Pengadaan / Barang Baru" wajib mengisi Sumber Anggaran, Tanggal Masuk, Foto Fisik, dan Harga (khusus KKK/Super Admin). Jenis "Inventaris Lama" tetap opsional.'
+                        ? 'Mode Ketat Barang Baru AKTIF — Jenis "Pengadaan / Barang Baru" wajib melengkapi Sumber Anggaran, Tanggal Masuk, Foto Fisik, dan Harga Satuan (sesuai kewenangan). Jenis "Inventaris Lama" tetap opsional.'
                         : 'Mode Input Fleksibel AKTIF — Sumber Anggaran, Tanggal Masuk, Foto Fisik, dan Harga bersifat OPSIONAL (aman untuk pendataan barang lama). Ubah ke Mode Ketat di menu Setting saat stok lama selesai didata.'
                 )
                 ->columns(2)
@@ -303,7 +303,7 @@ class ProcurementResource extends Resource
                                 ->required(),
 
                             TextInput::make('unit_price')
-                                ->label('Harga Satuan (Rp — Rahasia KKK)')
+                                ->label('Harga Satuan (Rp)')
                                 ->numeric()
                                 ->prefix('Rp')
                                 ->minValue(0)
@@ -328,7 +328,13 @@ class ProcurementResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn (Builder $query) => $query->with(['fundingSource', 'creator'])->withSum('items as total_qty', 'quantity'))
+            ->modifyQueryUsing(fn (Builder $query) => $query
+                ->with(['fundingSource', 'creator'])
+                ->withSum('items as total_qty', 'quantity')
+                ->withCount([
+                    'assetItems',
+                    'assetItems as unprinted_units_count' => fn (Builder $q) => $q->whereNull('qr_printed_at'),
+                ]))
             ->defaultSort('id', 'desc')
             ->columns([
                 TextColumn::make('batch_code')
@@ -361,6 +367,27 @@ class ProcurementResource extends Resource
                     ->color('info')
                     ->getStateUsing(fn (Procurement $record): int => (int) ($record->total_qty ?? 0)),
 
+                TextColumn::make('qr_print_status')
+                    ->label('Status QR')
+                    ->badge()
+                    ->getStateUsing(function (Procurement $record): string {
+                        $totalUnits = (int) ($record->asset_items_count ?? 0);
+                        if ($totalUnits === 0) {
+                            return '—';
+                        }
+                        $unprinted = (int) ($record->unprinted_units_count ?? 0);
+
+                        return $unprinted > 0 ? "{$unprinted} belum dicetak" : 'Semua tercetak';
+                    })
+                    ->color(function (Procurement $record): string {
+                        $totalUnits = (int) ($record->asset_items_count ?? 0);
+                        if ($totalUnits === 0) {
+                            return 'gray';
+                        }
+
+                        return (int) ($record->unprinted_units_count ?? 0) > 0 ? 'warning' : 'success';
+                    }),
+
                 TextColumn::make('photos_count')
                     ->label('Foto')
                     ->badge()
@@ -392,6 +419,18 @@ class ProcurementResource extends Resource
                     ->preload(),
             ])
             ->recordActions([
+                Action::make('printBatchQr')
+                    ->label(fn (Procurement $record): string => (int) ($record->unprinted_units_count ?? 0) > 0
+                        ? "Cetak QR ({$record->unprinted_units_count})"
+                        : 'Cetak QR')
+                    ->icon('heroicon-o-qr-code')
+                    ->color(fn (Procurement $record): string => (int) ($record->unprinted_units_count ?? 0) > 0 ? 'primary' : 'gray')
+                    ->visible(fn (Procurement $record): bool => $record->isGenerated()
+                        && (int) ($record->asset_items_count ?? 0) > 0
+                        && Gate::allows('print', AssetItem::class))
+                    ->url(fn (Procurement $record): string => route('print.qr', ['procurement_id' => $record->id]))
+                    ->openUrlInNewTab(),
+
                 Action::make('viewPhotos')
                     ->label('Foto')
                     ->icon('heroicon-o-photo')

@@ -24,6 +24,8 @@ class AssetItem extends Model
         return [
             'purchase_price' => 'integer',
             'installed_at' => 'datetime',
+            'qr_printed_at' => 'datetime',
+            'qr_print_count' => 'integer',
         ];
     }
 
@@ -80,6 +82,11 @@ class AssetItem extends Model
     public function isRetired(): bool
     {
         return $this->status === self::STATUS_RETIRED;
+    }
+
+    public function isQrPrinted(): bool
+    {
+        return $this->qr_printed_at !== null;
     }
 
     public function displayLabel(): string

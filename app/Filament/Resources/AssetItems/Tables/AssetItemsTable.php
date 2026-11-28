@@ -6,6 +6,7 @@ use App\Filament\Exports\AssetItemExporter;
 use App\Filament\Imports\AssetItemImporter;
 use App\Models\AssetItem;
 use App\Models\Location;
+use App\Services\ActivityLogger;
 use App\Services\AssetInstallationService;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
@@ -26,6 +27,7 @@ use Filament\Tables\Grouping\Group;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 
@@ -41,6 +43,7 @@ class AssetItemsTable
                 'parentItem.asset',
                 'procurement',
             ]))
+            ->defaultSort('id', 'desc')
             ->defaultGroup(Group::make('asset.nama_alat')->label(__('units.group_asset'))->collapsible())
             ->columns([
                 TextColumn::make('asset.nama_alat')
@@ -115,10 +118,28 @@ class AssetItemsTable
                     ->color('info')
                     ->description(fn (AssetItem $record): ?string => $record->storage_spot),
 
+                TextColumn::make('qr_printed_at')
+                    ->label(__('units.print_status_label'))
+                    ->badge()
+                    ->state(fn (AssetItem $record): string => $record->isQrPrinted()
+                        ? __('units.print_status_printed')
+                        : __('units.print_status_unprinted'))
+                    ->color(fn (AssetItem $record): string => $record->isQrPrinted() ? 'success' : 'warning')
+                    ->description(fn (AssetItem $record): ?string => $record->isQrPrinted()
+                        ? $record->qr_printed_at->format('d M Y H:i').' · '.max(1, (int) $record->qr_print_count).'×'
+                        : ('Masuk '.($record->created_at?->format('d M Y') ?? '-')))
+                    ->sortable(),
+
                 TextColumn::make('procurement.batch_code')
                     ->label('Batch Masuk')
                     ->placeholder('—')
                     ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                TextColumn::make('created_at')
+                    ->label(__('units.created_at_label'))
+                    ->dateTime('d M Y H:i')
+                    ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('purchase_price')
@@ -129,6 +150,26 @@ class AssetItemsTable
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
+                SelectFilter::make('qr_print_status')
+                    ->label(__('units.print_status_label'))
+                    ->options([
+                        'unprinted' => __('units.print_status_unprinted'),
+                        'printed' => __('units.print_status_printed'),
+                    ])
+                    ->query(function (Builder $query, array $data): Builder {
+                        return match ($data['value'] ?? null) {
+                            'unprinted' => $query->whereNull('qr_printed_at'),
+                            'printed' => $query->whereNotNull('qr_printed_at'),
+                            default => $query,
+                        };
+                    }),
+
+                SelectFilter::make('procurement_id')
+                    ->label('Batch Barang Masuk')
+                    ->relationship('procurement', 'batch_code')
+                    ->searchable()
+                    ->preload(),
+
                 SelectFilter::make('status')
                     ->label(__('units.status_label'))
                     ->options(AssetItem::statusOptions()),
@@ -147,6 +188,22 @@ class AssetItemsTable
                     ->preload(),
             ])
             ->headerActions([
+                Action::make('printUnprintedQr')
+                    ->label(__('units.print_unprinted_qr'))
+                    ->icon('heroicon-o-printer')
+                    ->color('primary')
+                    ->badge(fn (): int => AssetItem::whereNull('qr_printed_at')->count())
+                    ->badgeColor('warning')
+                    ->visible(fn (): bool => Gate::allows('print', AssetItem::class))
+                    ->url(fn (): string => route('print.qr', ['ids' => 'unprinted']))
+                    ->openUrlInNewTab(),
+                Action::make('printAllQr')
+                    ->label(__('units.print_all_qr'))
+                    ->icon('heroicon-o-qr-code')
+                    ->color('gray')
+                    ->visible(fn (): bool => Gate::allows('print', AssetItem::class))
+                    ->url(fn (): string => route('print.qr', ['ids' => 'all']))
+                    ->openUrlInNewTab(),
                 ImportAction::make()
                     ->label(__('common.import'))
                     ->importer(AssetItemImporter::class),
@@ -180,12 +237,6 @@ class AssetItemsTable
                 ExportAction::make()
                     ->label(__('units.download_excel'))
                     ->exporter(AssetItemExporter::class),
-                Action::make('printAllQr')
-                    ->label(__('units.print_all_qr'))
-                    ->icon('heroicon-o-qr-code')
-                    ->visible(fn (): bool => Gate::allows('print', AssetItem::class))
-                    ->url(fn (): string => route('print.qr', ['ids' => 'all']))
-                    ->openUrlInNewTab(),
             ])
             ->recordActions([
                 ActionGroup::make([
@@ -346,6 +397,27 @@ class AssetItemsTable
                         ->visible(fn (): bool => Gate::allows('print', AssetItem::class))
                         ->url(fn (AssetItem $record): string => route('print.qr', ['ids' => $record->getKey()]))
                         ->openUrlInNewTab(),
+                    Action::make('toggleQrPrinted')
+                        ->label(fn (AssetItem $record): string => $record->isQrPrinted()
+                            ? __('units.mark_unprinted')
+                            : __('units.mark_printed'))
+                        ->icon(fn (AssetItem $record): string => $record->isQrPrinted()
+                            ? 'heroicon-o-arrow-path'
+                            : 'heroicon-o-check-badge')
+                        ->color(fn (AssetItem $record): string => $record->isQrPrinted() ? 'warning' : 'success')
+                        ->visible(fn (): bool => Gate::allows('print', AssetItem::class))
+                        ->action(function (AssetItem $record): void {
+                            if ($record->isQrPrinted()) {
+                                $record->update(['qr_printed_at' => null]);
+                                Notification::make()->title('Status cetak direset ke Belum Dicetak')->info()->send();
+                            } else {
+                                $record->update([
+                                    'qr_printed_at' => now(),
+                                    'qr_print_count' => max(1, (int) $record->qr_print_count + 1),
+                                ]);
+                                Notification::make()->title('Unit ditandai Sudah Dicetak')->success()->send();
+                            }
+                        }),
                 ])
                     ->label(__('units.actions_label'))
                     ->icon('heroicon-o-ellipsis-horizontal'),
@@ -361,6 +433,46 @@ class AssetItemsTable
                         ->action(fn (Collection $records) => redirect()->away(
                             route('print.qr', ['ids' => $records->pluck('id')->implode(',')])
                         ))
+                        ->deselectRecordsAfterCompletion(),
+                    BulkAction::make('markBulkPrinted')
+                        ->label(__('units.mark_printed'))
+                        ->icon('heroicon-o-check-badge')
+                        ->color('success')
+                        ->visible(fn (): bool => Gate::allows('print', AssetItem::class))
+                        ->action(function (Collection $records): void {
+                            $ids = $records->pluck('id')->all();
+                            $updated = AssetItem::whereIn('id', $ids)->update([
+                                'qr_printed_at' => now(),
+                                'qr_print_count' => DB::raw('CASE WHEN qr_print_count = 0 THEN 1 ELSE qr_print_count END'),
+                            ]);
+
+                            ActivityLogger::log(
+                                'asset_item.qr_printed',
+                                "Menandai {$updated} unit terpilih sebagai Sudah Dicetak QR",
+                                null,
+                                ['count' => $updated],
+                            );
+
+                            Notification::make()
+                                ->title("{$updated} unit ditandai Sudah Dicetak")
+                                ->success()
+                                ->send();
+                        })
+                        ->deselectRecordsAfterCompletion(),
+                    BulkAction::make('markBulkUnprinted')
+                        ->label(__('units.mark_unprinted'))
+                        ->icon('heroicon-o-arrow-path')
+                        ->color('warning')
+                        ->visible(fn (): bool => Gate::allows('print', AssetItem::class))
+                        ->action(function (Collection $records): void {
+                            $ids = $records->pluck('id')->all();
+                            $updated = AssetItem::whereIn('id', $ids)->update(['qr_printed_at' => null]);
+
+                            Notification::make()
+                                ->title("{$updated} unit direset ke Belum Dicetak")
+                                ->info()
+                                ->send();
+                        })
                         ->deselectRecordsAfterCompletion(),
                     BulkAction::make('pindahRuanganMassal')
                         ->label(__('units.move_room'))

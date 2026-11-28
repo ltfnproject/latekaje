@@ -704,4 +704,142 @@ class Phase2InventoryTest extends TestCase
             $kkk->delete();
         }
     }
+
+    public function test_qr_print_tracking_unprinted_filter_batch_print_and_clean_ui_labels(): void
+    {
+        $kkk = User::updateOrCreate(
+            ['email' => 'p2-qr-kkk@latekaje.test'],
+            ['name' => 'KKK Cetak QR', 'password' => 'secret1234', 'role' => 'admin', 'is_active' => true, 'must_change_password' => false],
+        );
+        $borrower = User::updateOrCreate(
+            ['email' => 'p2-qr-user@latekaje.test'],
+            ['name' => 'Siswa Cetak QR', 'code' => 'P2QRU01', 'password' => 'secret1234', 'role' => 'users', 'is_active' => true, 'must_change_password' => false],
+        );
+
+        $gudang = Location::where('key', 'gudang')->firstOrFail();
+        $netCat = AssetCategory::where('code', 'NET')->firstOrFail();
+        $kblCat = AssetCategory::where('code', 'KBL')->firstOrFail();
+
+        $asset = Asset::create([
+            'category_id' => $netCat->id,
+            'nama_alat' => 'Mikrotik Uji Cetak QR',
+            'spesifikasi' => 'hEX S',
+            'kegunaan' => 'Praktik Siswa',
+            'tracking_mode' => Asset::MODE_SERIALIZED,
+        ]);
+        $bulkAsset = Asset::create([
+            'category_id' => $kblCat->id,
+            'nama_alat' => 'Kabel Uji Cetak QR',
+            'spesifikasi' => 'UTP 2m',
+            'kegunaan' => 'Praktik Siswa',
+            'tracking_mode' => Asset::MODE_BULK_RETURNABLE,
+        ]);
+
+        $batch = Procurement::create([
+            'batch_code' => 'BM-TEST-QR-0001',
+            'entry_type' => Procurement::TYPE_NEW,
+            'created_by' => $kkk->id,
+        ]);
+
+        $itemOldPrinted = AssetItem::create([
+            'asset_id' => $asset->id,
+            'nomor_seri_atau_qr' => 'QR-OLD-DONE-01',
+            'kondisi' => 'baik',
+            'status' => AssetItem::STATUS_AVAILABLE,
+            'location_id' => $gudang->id,
+            'qr_printed_at' => now()->subDay(),
+            'qr_print_count' => 1,
+        ]);
+
+        $itemNewBatch = AssetItem::create([
+            'asset_id' => $asset->id,
+            'nomor_seri_atau_qr' => 'QR-NEW-BATCH-01',
+            'kondisi' => 'baik',
+            'status' => AssetItem::STATUS_AVAILABLE,
+            'location_id' => $gudang->id,
+            'procurement_id' => $batch->id,
+        ]);
+
+        $bulkStock = BulkStock::create([
+            'asset_id' => $bulkAsset->id,
+            'location_id' => $gudang->id,
+            'container_qr' => 'QR-BULK-NEW-01',
+            'label' => 'Box Kabel Uji QR',
+            'total_qty' => 10,
+            'available_qty' => 10,
+        ]);
+
+        try {
+            $this->actingAs($kkk);
+
+            // 1. Pastikan tidak ada lagi keterangan "Rahasia KKK" di UI
+            foreach (['/admin/procurements/create', '/admin/asset-items/create', '/admin/consumables', '/admin/setting'] as $url) {
+                $this->get($url)
+                    ->assertOk()
+                    ->assertDontSee('Rahasia KKK');
+            }
+
+            // 2. Filter ?ids=unprinted hanya menampilkan unit baru yang belum dicetak
+            $this->get('/print-qr?ids=unprinted')
+                ->assertOk()
+                ->assertSee('QR-NEW-BATCH-01')
+                ->assertDontSee('QR-OLD-DONE-01');
+
+            // 3. Filter ?procurement_id=<id> hanya menampilkan unit dari batch tsb
+            $this->get('/print-qr?procurement_id='.$batch->id)
+                ->assertOk()
+                ->assertSee('QR-NEW-BATCH-01')
+                ->assertSee('BM-TEST-QR-0001')
+                ->assertDontSee('QR-OLD-DONE-01');
+
+            // 4. Tandai sudah dicetak (item) → qr_printed_at terisi, count +1, hilang dari unprinted
+            $this->postJson(route('print.qr.mark-printed'), [
+                'type' => 'item',
+                'ids' => [$itemNewBatch->id],
+            ])->assertOk()->assertJson(['ok' => true, 'updated' => 1]);
+
+            $itemNewBatch->refresh();
+            $this->assertTrue($itemNewBatch->isQrPrinted());
+            $this->assertSame(1, $itemNewBatch->qr_print_count);
+
+            $this->get('/print-qr?ids=unprinted')
+                ->assertOk()
+                ->assertDontSee('QR-NEW-BATCH-01');
+
+            // 5. Cetak & tandai QR Wadah Pinjam Massal
+            $this->get('/print-qr?type=bulk&ids=unprinted')
+                ->assertOk()
+                ->assertSee('QR-BULK-NEW-01');
+
+            $this->postJson(route('print.qr.mark-printed'), [
+                'type' => 'bulk',
+                'ids' => [$bulkStock->id],
+            ])->assertOk()->assertJson(['ok' => true, 'updated' => 1]);
+
+            $bulkStock->refresh();
+            $this->assertTrue($bulkStock->isQrPrinted());
+            $this->assertSame(1, $bulkStock->qr_print_count);
+
+            // 6. Peminjam (users) dilarang menandai cetak QR
+            $this->flushSession();
+            $this->actingAs($borrower)
+                ->postJson(route('print.qr.mark-printed'), [
+                    'type' => 'item',
+                    'ids' => [$itemNewBatch->id],
+                ])
+                ->assertForbidden();
+        } finally {
+            ActivityLog::whereIn('action', ['qr.printed', 'asset_item.qr_printed', 'bulk_stock.qr_printed'])
+                ->where('user_id', $kkk->id)
+                ->delete();
+            $bulkStock->delete();
+            $itemNewBatch->delete();
+            $itemOldPrinted->delete();
+            $batch->delete();
+            $bulkAsset->delete();
+            $asset->delete();
+            $kkk->delete();
+            $borrower->delete();
+        }
+    }
 }
